@@ -8,27 +8,31 @@ Estes projeto deve ser utilizado apanes para trabalho HOME_OFFICE, quando não h
 
 ### Pré-requisitos
 
-    * GIT - O software de controle de versionamento
-    * Microsoft Visual Studio - Editor de Texto e Projeto
+    **GIT** - O software de controle de versionamento
+    ** Microsoft Visual Studio** - Editor de Texto e Projeto
       ou 
-    * Sublime Text 3 - Editor de Texto
+    ** Sublime Text 3** - Editor de Texto
 
 
 ### Instalação
 
-    * GIT
+    **GIT**
 ```
 	Tutorial de instalação do Git [a](https://dicasdeprogramacao.com.br/como-instalar-o-git-no-windows/)
 ```
-* Microsoft Visual Studio  
+    **Microsoft Visual Studio**  
+```
 	Tutorial de Instalação do VS [b](https://docs.microsoft.com/pt-br/visualstudio/install/install-visual-studio?view=vs-2019)
+```
       ou 
-    * Sublime Text 3
+    **Sublime Text 3**
+```
 	Tutorial de Instalação do Subl [c](https://www.melhorhospedagemdesites.com/dicas-e-ferramentas/sublime-text-editor/)
-
-### Arvore de Diretório e Arquivos
 ```
 
+### Arvore de Diretório e Arquivos
+
+```
 		 --
 		   |----- /.git
 		   |       .gitignore
@@ -49,9 +53,9 @@ Estes projeto deve ser utilizado apanes para trabalho HOME_OFFICE, quando não h
 
 ## Autores
 
-* **Neuler Coelho** - *Ideia inicial* - (neuler.coelho@bb.com.br)
+- **Neuler Coelho** - ***Ideia inicial*** - (neuler.coelho@bb.com.br)
 
-Veja também a lista de **participantes** (https://github.com/desfecheAdabas/Dados/Documentacao/participantes.pdf)
+- Veja também a lista de **participantes** (https://github.com/desfecheAdabas/Dados/Documentacao/participantes.pdf)
 
 
 
