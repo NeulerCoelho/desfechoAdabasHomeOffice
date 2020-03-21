@@ -6,31 +6,27 @@ Migração das base de dados do banco de dados SGA/ADABAS para o banco de dados 
 
 Estes projeto deve ser utilizado apanes para trabalho HOME_OFFICE, quando não há possilidade dos analista não estarem presente as instalações do Banco do Brasil.
 
-### Pré-requisitos
+## Pré-requisitos
 
-    **GIT** - O software de controle de versionamento
-    ** Microsoft Visual Studio** - Editor de Texto e Projeto
-      ou 
-    ** Sublime Text 3** - Editor de Texto
+**GIT** - O software de controle de versionamento
+**Microsoft Visual Studio** - Editor de Texto e Projeto
+   ou 
+**Sublime Text 3** - Editor de Texto
 
 
-### Instalação
+## Instalação
 
-    **GIT**
-```
+   **GIT**
 	Tutorial de instalação do Git [a](https://dicasdeprogramacao.com.br/como-instalar-o-git-no-windows/)
-```
-    **Microsoft Visual Studio**  
-```
-	Tutorial de Instalação do VS [b](https://docs.microsoft.com/pt-br/visualstudio/install/install-visual-studio?view=vs-2019)
-```
-      ou 
-    **Sublime Text 3**
-```
-	Tutorial de Instalação do Subl [c](https://www.melhorhospedagemdesites.com/dicas-e-ferramentas/sublime-text-editor/)
-```
 
-### Arvore de Diretório e Arquivos
+   **Microsoft Visual Studio**  
+        Tutorial de Instalação do VS [b](https://docs.microsoft.com/pt-br/visualstudio/install/install-visual-studio?view=vs-2019)
+   ou 
+   **Sublime Text 3**
+        Tutorial de Instalação do Subl [c](https://www.melhorhospedagemdesites.com/dicas-e-ferramentas/sublime-text-editor/)
+
+
+## Arvore de Diretório e Arquivos
 
 ```
 		 --
