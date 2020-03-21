@@ -51,7 +51,7 @@ Estes projeto deve ser utilizado apanes para trabalho HOME_OFFICE, quando não h
 
 ## Autores
 
-* ** Neuler ** - * Ideia inicial * - [Neuler Banco Brasil] (mailto:neuler.coelho@bb.com.br)
+* ** Neuler Coelho ** - * Ideia inicial * - [Neuler Banco Brasil] (mailto:neuler.coelho@bb.com.br)
 
 Veja também a lista de [participantes] (https://github.com/desfecheAdabas/Dados/Documentacao/participantes.pdf)
 
