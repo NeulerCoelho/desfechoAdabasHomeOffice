@@ -27,7 +27,7 @@ Estes projeto deve ser utilizado apanes para trabalho HOME_OFFICE, quando não h
 	1. Open Git Bash.
 
 	2. Cole o texto abaixo, substituindo o endereço de e-mail pelo seu GitHub Enterprise.
-	   $ ssh-keygen -t rsa -b 4096 -C "seu_email@exemplo.com.br"
+	   - $ ssh-keygen -t rsa -b 4096 -C "seu_email@exemplo.com.br"
 	   - O comando criará a chave SSH, usando o e-mail fornecido como uma etiqueta.
 	     - Generating public/private rsa key pair.
 	        Quando aparecer a solicitação "Enter file in which to save the key (/c/Users/usuario_000/.ssh/id_rsa):" 
