@@ -27,19 +27,17 @@ Estes projeto deve ser utilizado apanes para trabalho HOME_OFFICE, quando não h
 	1. Open Git Bash.
 
 	2. Cole o texto abaixo, substituindo o endereço de e-mail pelo seu GitHub Enterprise.
-		$ ssh-keygen -t rsa -b 4096 -C "seu_email@exemplo.com.br"
-		- O comando criará a chave SSH, usando o e-mail fornecido como uma etiqueta.
-
-		- Generating public/private rsa key pair.
-		    Quando aparecer a solicitação "Enter file in which to save the key (/c/Users/usuario_000/.ssh/id_rsa):" 
-		    - Insira o nome do arquivo no qual salvará a chave SSH ou presssione 'Enter' para local padrão do arquivo.
-		    - Será exibida a confirmação (Created directory '/c/Users/usuario_000/.ssh'.)
-	  
-		    - Insira a password ou vazio: [Enter passphrase (empty for no passphrase):]
-		    - Insira novamente a password: [Enter same passphrase again:]
-		    - As mensagens a seguir confirma a crição da chave:
-				Your identification has been saved in /c/Users/usuario_000/.ssh/id_rsa.
-				Your public key has been saved in /c/Users/usuario_000/.ssh/id_rsa.pub.
+	   $ ssh-keygen -t rsa -b 4096 -C "seu_email@exemplo.com.br"
+	   - O comando criará a chave SSH, usando o e-mail fornecido como uma etiqueta.
+	     - Generating public/private rsa key pair.
+	        Quando aparecer a solicitação "Enter file in which to save the key (/c/Users/usuario_000/.ssh/id_rsa):" 
+		- Insira o nome do arquivo no qual salvará a chave SSH ou presssione 'Enter' para local padrão do arquivo.
+		- Será exibida a confirmação (Created directory '/c/Users/usuario_000/.ssh'.
+		- Insira a password ou vazio: [Enter passphrase (empty for no passphrase):]
+		- Insira novamente a password: [Enter same passphrase again:]
+		  - As mensagens a seguir confirma a crição da chave:
+		    Your identification has been saved in /c/Users/usuario_000/.ssh/id_rsa.
+		    Your public key has been saved in /c/Users/usuario_000/.ssh/id_rsa.pub.
 ```
 	    Veja este Exemplo:
 			Generating public/private rsa key pair.
@@ -86,4 +84,3 @@ Estes projeto deve ser utilizado apanes para trabalho HOME_OFFICE, quando não h
 - **Neuler Coelho** - ***Ideia inicial*** - (neuler.coelho@bb.com.br)
 
 - Veja também a lista de [participantes](https://github.com/desfecheAdabas/Dados/Documentacao/participantes.pdf)
-
