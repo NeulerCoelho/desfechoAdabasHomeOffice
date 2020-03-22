@@ -61,22 +61,6 @@ do Banco do Brasil.
 ## Arvore de Diretório e Arquivos
 
 ```
-     --
-       |--- /.git
-       |     .gitignore
-       |     README.md (Este arquivo)
-       |--- /Dados --
-                    |--- /Controles   (Relatorios de acompanhamento)
-                    |
-                    |--- /Desenvolvimento --     (Modulos Natural)
-                    |                      | /ANCPRG 
-                    |                      |
-                    |                      | /ACXPRG ()
-                    |                      |
-                    |                      ....
-                    |
-                    |--- /Documentação
-                       
 ```
 
 
