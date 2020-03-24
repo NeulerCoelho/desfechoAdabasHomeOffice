@@ -1,0 +1,309 @@
+* ----------------------------------------------------------------------
+*  PROGRAMA: ANCP6820
+*  ANALISTA..: H443057
+*  AUTOR.....: H443057
+*  SISTEMA.: ANC
+*  OBJETIVO:
+* ----------------------------------------------------------------------
+************************************************************************ 
+* Sistema   : ANC - Analise de clientes                                * 
+* PROGRAMA  : ANCP6820                                                 * 
+* AUTOR     : Octavio Augusto                                          * 
+* Analista  : Octavio Augusto                                          * 
+* Data      : 24/03/2003                                               * 
+* Funcao    : Consulta relacao de limites Isentos * 
+**************************-------------------------------------------- * 
+* TRANSFERENCIA COM BIND *                                             * 
+**************************-------------------------------------------- * 
+* VRS005-22/11/2017 - JOAO - AJUSTES AO DETALHAR INFORMACOES 
+* VRS004-16/03/2016 - Gileno - Retirar o acesso direto a tabela BDD    * 
+* VRS003-10/08/2010 - Delmar - Retirar o acesso direto a tabela DB2    * 
+*                              BCI-PAIS - AÇÃO 66355.                  * 
+* VRS002-03/01/2008 - Zolet  -Aumento para 300 ocorr (moeda)           * 
+* VRS001-24/04/2003 - Octavio Augusto -Implantação                     * 
+* -------------------------------------------------------------------- * 
+DEFINE DATA 
+* 
+LOCAL USING BCIL006R              /* 66355 
+LOCAL USING BDDA088A 
+LOCAL 
+* 
+01 #MAPA 
+  02 #VL-LIM-APROV                (N15/350) 
+  02 REDEFINE #VL-LIM-APROV 
+    03 #VL-LIM-APROV-R            (N13,2/350) 
+  02 #NOME-BANCO                  (A24/350) 
+  02 #CV-SELECAO                  (C / 350) 
+  02 #CD-BANCO                    (I04/350) 
+  02 #DT-VENC                     (N08/350) 
+  02 #PAIS                        (A12/350) 
+  02 #SEL                         (A01/350) 
+  02 #NOM-MOEDA                   (A05) 
+* 
+01 #DT-SISTEMA                    (N08) 
+01 #NUMBER                        (N05) 
+* 
+01 #AUXILIARES 
+  02 #AUX-COT-MOEDA               (N8,7) 
+  02 #AUX-MULTI-DIV               (P001) 
+  02 #AUX-COT-REAL                (N8,7) 
+  02 #DATA-INICIO                 (N08) 
+  02 #AUX-CONF                    (A01) 
+  02 #AUX-INST                    (I04) 
+  02 #DATA-FIM                    (N08) 
+* 
+  02 WAUX-DATA                    (N08) 
+  02 REDEFINE WAUX-DATA 
+    03 WAUX-ANO                   (N04) 
+    03 WAUX-MES                   (N02) 
+    03 WAUX-DIA                   (N02) 
+* 
+01 #INDEXADORES 
+  02 #IND-TAB-MOEDA               (I02) 
+  02 #IND-TEL                     (N07) 
+  02 #ACHOU                       (N04) 
+  02 #IND                         (I02) 
+* 
+* VARIAVEIS DO MAPA ANCM6820 /* PASSAGEM DE PARAMETROS (ANCP5310) 
+* 
+01 WTEL-DOLLAR                    (A01) 
+01 #NOME-MOEDA                    (A20) 
+01 WTEL-RISCO                     (A01) 
+01 #COD-MOEDA                     (N03) 
+01 #COD-BANCO                     (N05) 
+01 WTEL-REAL                      (A01) 
+01 #COD-DEP                       (N04) 
+01 #MOEDA                         (N03) 
+01 #OPC                           (A02) 
+* 
+* VIEWS 
+* 
+01 LIMITES VIEW OF ANC162-LIMITE 
+  02 CD-INST-FINANCEIRA-162 
+  02 DT-FIM-VIGENCIA-162 
+  02 DT-FIM-LIM-CREDITO-162 
+  02 VL-LIM-APROVADO-162 
+  02 ST-SITUACAO-162 
+* 
+* 
+* 01 PAIS VIEW OF DB2BCI-PAIS 
+*   02 COD 
+*   02 NOM 
+*  02 IND_ATVO 
+* 
+INDEPENDENT 
+01 +GD-TAB-MOEDA-VALOR            (A39/300) 
+01 REDEFINE +GD-TAB-MOEDA-VALOR 
+  02 OCORRE                       (300) 
+    03 #GD-COD-MOEDA              (N03) 
+    03 #GD-NOME-MOEDA             (A20) 
+    03 #GD-PARIDADE               (N8,7) 
+    03 #GD-MULTIDIV               (N01) 
+01 +PROGRAM                       (A08) 
+* 
+END-DEFINE 
+* 
+SET CONTROL 'M23' 
+SET KEY ALL 
+* 
+INPUT #MOEDA  #COD-BANCO 
+* WRITE '**** INICIO DO P6820 ****' 
+#CV-SELECAO (*) := (AD=PN) 
+* 
+IF #GD-COD-MOEDA(1) = 790 
+  #AUX-COT-REAL := #GD-PARIDADE(1) 
+END-IF 
+* 
+FOR #IND-TAB-MOEDA 1 TO 300 
+  IF #GD-COD-MOEDA(#IND-TAB-MOEDA) = #MOEDA 
+    #AUX-MULTI-DIV := #GD-MULTIDIV  (#IND-TAB-MOEDA) 
+    #AUX-COT-MOEDA := #GD-PARIDADE  (#IND-TAB-MOEDA) 
+    #NOME-MOEDA    := #GD-NOME-MOEDA(#IND-TAB-MOEDA) 
+    ESCAPE BOTTOM 
+  END-IF 
+END-FOR 
+* 
+IF #MOEDA EQ 790 
+  #NOM-MOEDA := ' REAL' 
+ELSE 
+  #NOM-MOEDA := 'DOLAR' 
+END-IF 
+* 
+#DT-SISTEMA  := *DATN 
+* WRITE 'VAI ENTRAR NO FIND LIMITES' 
+FIND LIMITES WITH ST-SITUACAO-162  = 'I' 
+    AND DT-FIM-VIGENCIA-162 EQ 99999999 
+    AND CD-INST-FINANCEIRA-162 NE 99999 
+    SORTED BY DT-FIM-LIM-CREDITO-162 
+* 
+  #ACHOU := 1 
+* 
+  PERFORM BUSCA-NOME-BANCO 
+* 
+  IF #IND GE 350 
+* WRITE 'VAI PRO MOSTRA-MAPA' 
+    PERFORM MOSTRA-MAPA 
+    IF *PF-KEY EQ 'PF3' OR= 'PF15' 
+      RESET #IND 
+      ESCAPE BOTTOM 
+    END-IF 
+    RESET #MAPA #IND 
+  END-IF 
+* 
+END-FIND 
+* WRITE 'SAIU DO FIND' 
+IF #ACHOU = 1 
+  RESET #ACHOU 
+ELSE 
+  MOVE 1 TO #IND-TEL 
+  INPUT WITH TEXT 
+    ' Nao ha instituicao Financeira com limite pendente.Tecle '- 
+    '"F3" P/ SAIR.' USING MAP 'ANCM6820' 
+  IF *PF-KEY = 'PF3' OR= 'PF15' 
+    FETCH 'ANCP6801' #MOEDA 
+  ELSE 
+    TERMINATE 
+    IF *PF-KEY = 'PF5' OR= 'PF17' 
+      TERMINATE 
+    ELSE 
+      IF *PF-KEY = 'PF10' OR= 'PF17' 
+        FETCH 'ANCP5000' 
+      ELSE 
+        REINPUT ' Tecla invalida.' 
+      END-IF 
+    END-IF 
+  END-IF 
+* 
+END-IF 
+* 
+PERFORM MOSTRA-MAPA 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE BUSCA-NOME-BANCO 
+* -------------------------------------------------------------------- * 
+* WRITE 'BUSCA-NOME-BANCO' 
+MOVE CD-INST-FINANCEIRA-162 TO #AUX-INST 
+* 
+* FIND (1) COMPANY WITH COD = #AUX-INST 
+*   IF NO RECORDS FOUND 
+*     ESCAPE BOTTOM 
+*  END-NOREC 
+* 
+RESET #BDDA088A(*) 
+MOVE #AUX-INST  TO #BDDA088A-COD 
+SET CONTROL 'P=C' 
+CALL 'BDDE088H' #BDDA088A (*) 
+* 
+IF #BDDA088A-NOM = ' ' 
+  ESCAPE ROUTINE 
+END-IF 
+ADD  1 TO #IND 
+#CD-BANCO(#IND)    := #BDDA088A-COD 
+#NOME-BANCO(#IND)  := #BDDA088A-NOM 
+#CV-SELECAO(#IND)  := (AD=D) 
+* 
+WAUX-DATA := DT-FIM-LIM-CREDITO-162 
+COMPUTE #DT-VENC(#IND) = WAUX-DIA 
+  * 1000000 + WAUX-MES * 10000 + WAUX-ANO 
+* 
+IF #MOEDA EQ 220 
+  #VL-LIM-APROV-R (#IND) := VL-LIM-APROVADO-162 
+ELSE 
+  COMPUTE #VL-LIM-APROV-R (#IND) = VL-LIM-APROVADO-162 
+    * #AUX-COT-REAL 
+END-IF 
+* 
+*  FIND (1) PAIS WITH COD = F_TABPAIS_COD 
+*    #PAIS(#IND)  := PAIS.NOM 
+*  END-FIND 
+* 
+* RETIRA ACESSO DIRETO DB2BCI-PAIS ACAO 66355 
+* 
+* WRITE '=' #BDDA088A-F-TABPAIS-COD 
+MOVE 1                       TO #006R-CD-FUC                /* 66355 
+MOVE #BDDA088A-F-TABPAIS-COD TO #006R-COD                   /* 66355 
+* WRITE '=' #006R-COD 
+* 
+SET CONTROL 'P=C'                                 /* 66355 
+CALL 'BCIS006R' USING #BCIL006R                   /* 66355 
+* 
+IF #006R-CD-RTN NE 0                            /* 66355 
+  COMPRESS 'Erro BCIS006R Ý'#006R-CD-RTN'¨ Ý'#006R-TX-MSG-RTN'¨' 
+    ' "F3" / SAI ' 
+    INTO +GD-MSG-TELA 
+  #IND-TEL := 1 
+  INPUT WITH TEXT +GD-MSG-TELA    USING MAP 'ANCM6820' 
+  IF *PF-KEY = 'PF3' OR= 'PF15' 
+    FETCH 'ANCP6801' #MOEDA 
+* ELSE 
+*   FETCH 'ANCP5000' 
+  END-IF 
+END-IF 
+* 
+MOVE #006R-NOM  TO #PAIS(#IND)             /* 66355 
+* 
+IF #PAIS(#IND) = ' ' 
+  #PAIS(#IND) := 'Nao cadastr.' 
+END-IF 
+* END-FIND 
+* 
+END-SUBROUTINE 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE MOSTRA-MAPA 
+* -------------------------------------------------------------------- * 
+* 
+#IND-TEL := 1 
+* 
+RP02. REPEAT 
+  INPUT USING MAP 'ANCM6820' 
+* 
+  DECIDE ON FIRST VALUE OF *PF-KEY 
+    VALUE 'ENTR' 
+      EXAMINE #SEL(*)  FOR  'X' GIVING NUMBER #NUMBER 
+      IF #NUMBER = 0 
+        REINPUT ' Selecione apenas com um "X".' 
+      END-IF 
+      IF #NUMBER GT 1 
+        REINPUT ' Selecione apenas uma opcao.' 
+      END-IF 
+* 
+      EXAMINE #SEL(*)  FOR 'X' GIVING INDEX #NUMBER 
+      +PROGRAM := 'ANCP6820' 
+* WRITE 'CHAMANDO P6010' 
+      FETCH RETURN 'ANCP6010' #CD-BANCO (#IND-TEL) 
+* 
+* WRITE 'CHAMANDO P5310' 
+      FETCH 'ANCP5310' #CD-BANCO(#NUMBER) #MOEDA #AUX-COT-MOEDA 
+        #NOME-MOEDA #AUX-MULTI-DIV #AUX-COT-REAL 
+* 
+    VALUE 'PF3' , 'PF15' 
+      FETCH 'ANCP6801' #MOEDA 
+    VALUE 'PF5' , 'PF17' 
+      TERMINATE 
+    VALUE 'PF7' , 'PF19' 
+      SUBTRACT 14 FROM #IND-TEL 
+      IF #IND-TEL LE 0 
+        ADD 14 TO #IND-TEL 
+        REINPUT ' Primeira pagina.' ALARM 
+      END-IF 
+    VALUE 'PF8' , 'PF20' 
+      ADD 14 TO #IND-TEL 
+      IF #IND-TEL GE 350 OR #CD-BANCO (#IND-TEL) EQ 0 
+        SUBTRACT 14 FROM #IND-TEL 
+        IF #IND-TEL GE 336 
+          ESCAPE ROUTINE 
+        ELSE 
+          REINPUT ' Ultima pagina.' ALARM 
+        END-IF 
+      END-IF 
+* 
+    VALUE 'PF10','PF22' 
+      FETCH 'ANCP5000' 
+    NONE 
+      REINPUT ' Tecla invalida.' ALARM 
+  END-DECIDE 
+END-REPEAT 
+END-SUBROUTINE 
+* 
+END 

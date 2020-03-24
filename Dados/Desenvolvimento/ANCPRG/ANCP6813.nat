@@ -1,0 +1,541 @@
+* ----------------------------------------------------------------------
+*  PROGRAMA: ANCP6813
+*  ANALISTA..: H443057
+*  AUTOR.....: H443057
+*  SISTEMA.: ANC
+*  OBJETIVO:
+* ----------------------------------------------------------------------
+************************************************************************ 
+* SISTEMA   : ANC - ANALISE DE CLIENTES                                * 
+* PROGRAMA  : ANCP6813                                                 * 
+* AUTOR     : CLAYTON LUSTOSA                                          * 
+* ANALISTA  : JOAO TEODORO                                             * 
+* DATA      : 16/06/1998                                               * 
+* FUNCAO    : CONSULTA DE DISPONIVEL DIRIN - POR INSTITUICAO           * 
+**************************-------------------------------------------- * 
+* TRANSFERENCIA COM BIND * 
+**************************-------------------------------------------- * 
+* VRS009-13.04.15-MISAEL - SSTI DMD 2014/133433 ALTERADO TEXTO "DININ" * 
+*                          PARA "DIMEC"                                * 
+* VRS008-09.08.10-DELMAR  -  RETIRA ACESSO DIRETO A TABELA DB2BCI-PAIS * 
+*                            AÇÃO 66355.                               * 
+* VRS007-15.11.00-Viviane S.Mudança da rotina Usu-1100-Batch p/ Gim705/6 
+* VRS006-16.03.00-JOAO TEODORO-ALTERA TAMANHO TABELA MOEDAS P/200      * 
+* VRS005-11/11/99-VIVIANE S.-INIBE CRITICA COD_SITU/COD_NATU DA INST.  * 
+* VRS004-16/12/98-VIVIANE S.-RESETAR VARIAVEIS ANCN6000.               * 
+* VRS003-16/12/98-VIVIANE S.-AJUSTE DA QUEBRA DE PAGINA "F8".          * 
+* VRS002-21/11/98-VIVIANE S.-MUDANçA DE LEITURA DE TAB. ADABAS P/ DB2. * 
+* VRS001-16/06/98-CLAYTON LUSTOSA-IMPLANTACAO                          * 
+* -------------------------------------------------------------------- * 
+DEFINE DATA 
+LOCAL USING BDDAL088 
+LOCAL USING BCIL006L 
+LOCAL USING BDDA002A 
+LOCAL USING BDDAMSG0 
+LOCAL 
+* 
+01 MAPAS 
+  02 WTEL-PESQ                    (I04) 
+  02 #CV                          (C/495) 
+  02 WTEL-BANCO                   (I04/495) 
+  02 WTEL-NOME-BANCO              (A22/495) 
+  02 WTEL-PAIS                    (A14/495) 
+  02 WTEL-DT-VENC                 (N08/495) 
+  02 WTEL-VLR-DIRIN               (P15/495) 
+  02 REDEFINE WTEL-VLR-DIRIN 
+    03 WTEL-VLR-DIRIN-R           (P13,2/495) 
+* 
+01 WTEL-MOEDA                     (A05) 
+01 WAUXILIARES 
+  02 WAUX-LIM-APROV-S2            (P13,2) 
+  02 WAUX-LIM-APROV-S3            (P13,2) 
+  02 WAUX-LIM-APROV-S4            (P13,2) 
+  02 WAUX-VL-UTIL-S2              (P13,2) 
+  02 WAUX-VL-UTIL-S3              (P13,2) 
+  02 WAUX-VL-UTIL-S4              (P13,2) 
+  02 WAUX-VL-DISP-S2              (P13,2) 
+  02 WAUX-VL-DISP-S3              (P13,2) 
+  02 WAUX-VL-DISP-S4              (P13,2) 
+  02 WAUX-VL-BLOQ-S2              (P13,2) 
+* 
+  02 WAUX-COT-REAL                (N08,7) 
+  02 WAUX-COT-MOEDA               (N08,7) 
+  02 WAUX-MULTI-DIV               (P01) 
+* 
+  02 WAUX-DATA                    (N08) 
+  02 REDEFINE WAUX-DATA 
+    03 WAUX-ANO                   (N04) 
+    03 WAUX-MES                   (N02) 
+    03 WAUX-DIA                   (N02) 
+* 
+01 WINDEXADORES 
+  02 WIND-TL1                     (N07) 
+  02 WIND-01                      (N05) 
+  02 WIND-TAB-MOEDA               (I02) 
+* 
+01 I                                   (I02) INIT <0>      /* 66355 
+01 J                                   (I02) INIT <0> 
+01 K                                   (I02) INIT <0> 
+01 L                                   (I02) INIT <0> 
+01 I1                                  (I02) INIT <0> 
+01 G1                                  (I02) INIT <0> 
+01 #IND-01                             (I02) INIT <0> 
+01 WAUX-NOME-PAIS                      (A25/301) 
+01 WAUX-CD-HOLDING                     (N09/301) 
+01 WAUX-NM-HOLDING                     (A55/301) 
+* 
+01 WAUX-NOME-P                         (A25) INIT <' '> 
+01 WAUX-NOME-PAIS-S                    (A25/600) 
+01 WAUX-CD-HOLDING-S                   (N09/600) 
+01 WAUX-NM-HOLDING-S                   (A55/600) 
+* 
+01 #ACHOU                         (N04) 
+01 #VEZ                           (N04) 
+01 #FLAG                          (N04) 
+01 #MOEDA                         (N03) 
+01 #COD-BANCO                     (I04) 
+01 #DT-SISTEMA                    (N08) 
+* --------------- VARIAVEIS PARA A SUBROTINA ANCN6000 ---------------- * 
+01 WPAR-RC                        (N01) 
+01 WPAR-VLR-PLA-BCO               (P13,2) 
+01 WPAR-VLR-UTIL-BCO              (P13,2) 
+01 WPAR-VLR-BLOQ-BCO              (P13,2) 
+01 WPAR-VLR-UTIL-BCO-REAL         (P13,2) 
+01 WPAR-VLR-UTIL-TAB              (P13,2/10) 
+01 WPAR-VLR-UTIL-TAB-REAL         (P13,2/10) 
+01 WPAR-VLR-BLOQ-TAB              (P13,2/10) 
+* 
+01 LIMITES VIEW OF ANC162-LIMITE 
+  02 CD-INST-FINANCEIRA-162 
+  02 DT-FIM-VIGENCIA-162 
+  02 DT-FIM-LIM-CREDITO-162 
+  02 VL-LIM-APROVADO-162 
+  02 CD-SUBLIMITE-162                   (1:10) 
+  02 PC-LIMITE-AUTORIZADO-162           (1:10) 
+  02 REDEFINE PC-LIMITE-AUTORIZADO-162 
+    03 OCORRE (10) 
+      04 FILLER                         (N010) 
+      04 PC-LIMITE-AUTORIZADO-162-N32   (N3,2) 
+* 
+* 01 COMPANY VIEW OF DB2BDD-HOLDING_COMPANY 
+*   02 COD 
+*   02 NOM 
+*   02 F_TABPAIS_COD 
+* 
+* 01 RISCO VIEW OF DB2BDD-RISCO_HC 
+*   02 COD 
+*   02 DTA_INIC_VLDE 
+*   02 DTA_FIM_VLDE 
+*   02 COD_MATR 
+*   02 F_HLDGCPNY_COD 
+* 
+* 01 PAIS VIEW OF DB2BCI-PAIS 
+*   02 COD 
+*   02 NOM 
+*   02 IND_ATVO 
+* 
+INDEPENDENT 
+01 +PROGRAM                       (A08) 
+01 +GD-TAB-MOEDA-VALOR            (A39/300) 
+01 REDEFINE +GD-TAB-MOEDA-VALOR 
+  02 OCORRE                       (300) 
+    03 #GD-COD-MOEDA              (N03) 
+    03 #GD-NOME-MOEDA             (A20) 
+    03 #GD-PARIDADE               (N08,7) 
+    3 #GD-MULTIDIV                (N01) 
+* 
+END-DEFINE 
+* -------------------------------------------------------------------- * 
+SET CONTROL 'M23' 
+SET KEY ALL 
+DEFINE WINDOW WIN1 
+  SIZE AUTO 
+  BASE 07/20 
+* 
+INPUT #MOEDA 
+RESET WIND-01 
+* 
+IF #GD-COD-MOEDA(1) = 790 
+  WAUX-COT-REAL := #GD-PARIDADE(1) 
+END-IF 
+* 
+FOR WIND-TAB-MOEDA 1 TO 300 
+  IF #GD-COD-MOEDA(WIND-TAB-MOEDA) = #MOEDA 
+    WAUX-MULTI-DIV := #GD-MULTIDIV (WIND-TAB-MOEDA) 
+    WAUX-COT-MOEDA := #GD-PARIDADE (WIND-TAB-MOEDA) 
+    ESCAPE BOTTOM 
+  END-IF 
+END-FOR 
+* 
+IF #MOEDA EQ 790 
+  WTEL-MOEDA :=  ' REAL' 
+ELSE 
+  WTEL-MOEDA :=  'DOLAR' 
+END-IF 
+* 
+#DT-SISTEMA  :=  *DATN 
+* 
+* SELECT T1.COD, T1.NOM, T2.F_HLDGCPNY_COD, T2.DTA_FIM_VLDE, 
+*   T3.COD, T3.NOM, T3.F_TABPAIS_COD 
+*   INTO PAIS.COD, PAIS.NOM, RISCO.F_HLDGCPNY_COD, RISCO.DTA_FIM_VLDE, 
+*   COMPANY.COD, COMPANY.NOM, COMPANY.F_TABPAIS_COD 
+*   FROM DB2BCI-PAIS T1, DB2BDD-RISCO_HC T2, DB2BDD-HOLDING_COMPANY T3 
+*   WHERE F_HLDGCPNY_COD = T3.COD 
+*   AND DTA_FIM_VLDE     = '31.12.9999' 
+*   AND T1.COD           = F_TABPAIS_COD 
+*   ORDER BY T1.NOM ASC 
+* 
+*       RETIRA ACESSO DIRETO DB2BCI-PAIS ACAO 66355 
+* 
+* #COD-BANCO := COMPANY.COD 
+* 
+* AT BREAK PAIS.COD 
+*   RESET #VEZ 
+*   IF #ACHOU EQ 1 
+*     ADD 1 TO WIND-01 
+*     RESET #ACHOU 
+*   END-IF 
+* END-BREAK 
+* 
+MOVE 0   TO  #L006L-COD-E 
+PERFORM BUSCA-NOME-PAIS 
+* 
+* 
+REPEAT 
+*  UNTIL I1 = #L006L-QT-REG-RTN  AND #L006L-IN-REG = 'N' 
+   UNTIL I1 = J                  AND #L006L-IN-REG = 'N' 
+ IF I1 <= J 
+   I1 := I1 + 1 
+ END-IF 
+* 
+*  IF #L006L-COD ( I ) = WTEL-PAIS ( I )   /* ACAO 66355 
+*  IF #L006L-COD ( I ) = WAUX-CD-HOLDING ( I )     /* ACAO 66355 
+*    RESET #VEZ 
+*    IF #ACHOU EQ 1 
+*      RESET #ACHOU 
+*    END-IF 
+*  END-IF 
+* 
+* IF WAUX-CD-HOLDING-S ( I1 )= 0 
+*   ESCAPE TOP 
+* END-IF 
+* 
+#COD-BANCO := WAUX-CD-HOLDING-S ( I1 ) 
+* 
+  FIND LIMITES WITH CD-INST-FINANCEIRA-162 EQ #COD-BANCO 
+      AND  DT-FIM-VIGENCIA-162 EQ 99999999 
+    IF NO RECORDS 
+      ESCAPE BOTTOM 
+    END-NOREC 
+* 
+    IF *LIBRARY-ID NE 'ANCSYS' 
+*     DISPLAY RISCO.F_HLDGCPNY_COD 
+      DISPLAY #BDDA002A-F-HLDGCPNY-COD                     /* 66355 
+      SET CONTROL 'N' 
+    END-IF 
+* 
+    IF VL-LIM-APROVADO-162 LE 0 
+      ESCAPE BOTTOM 
+    END-IF 
+    IF DT-FIM-LIM-CREDITO-162 LT #DT-SISTEMA 
+      ESCAPE BOTTOM 
+    END-IF 
+* 
+    IF #MOEDA EQ 220                                            /* DOLAR 
+      ASSIGN ROUNDED WAUX-LIM-APROV-S2 = 
+        VL-LIM-APROVADO-162 * PC-LIMITE-AUTORIZADO-162-N32(2) / 100 
+      ASSIGN ROUNDED WAUX-LIM-APROV-S3 = 
+        VL-LIM-APROVADO-162 * PC-LIMITE-AUTORIZADO-162-N32(3) / 100 
+      ASSIGN ROUNDED WAUX-LIM-APROV-S4 = 
+        VL-LIM-APROVADO-162 * PC-LIMITE-AUTORIZADO-162-N32(4) / 100 
+    ELSE                                                         /* REAL 
+      COMPUTE ROUNDED WAUX-LIM-APROV-S2 = VL-LIM-APROVADO-162 * 
+        PC-LIMITE-AUTORIZADO-162-N32(2) / 100 * WAUX-COT-REAL 
+      COMPUTE ROUNDED WAUX-LIM-APROV-S3 = VL-LIM-APROVADO-162 * 
+        PC-LIMITE-AUTORIZADO-162-N32(3) / 100 * WAUX-COT-REAL 
+      COMPUTE ROUNDED WAUX-LIM-APROV-S4 = VL-LIM-APROVADO-162 * 
+        PC-LIMITE-AUTORIZADO-162-N32(4) / 100 * WAUX-COT-REAL 
+    END-IF 
+* 
+*   FETCH RETURN 'ANCP6010' #COD-BANCO 
+* 
+    RESET 
+      WPAR-VLR-UTIL-TAB(*) WPAR-VLR-UTIL-BCO 
+      WPAR-VLR-BLOQ-TAB(*) WPAR-VLR-BLOQ-BCO WPAR-VLR-UTIL-TAB-REAL(*) 
+      WPAR-VLR-UTIL-BCO-REAL WPAR-VLR-PLA-BCO WPAR-RC 
+* 
+    CALLNAT 'ANCN6000' #COD-BANCO #MOEDA WAUX-MULTI-DIV 
+      WAUX-COT-MOEDA WPAR-VLR-UTIL-TAB(*) WPAR-VLR-UTIL-BCO 
+      WPAR-VLR-BLOQ-TAB(*) WPAR-VLR-BLOQ-BCO WPAR-VLR-UTIL-TAB-REAL(*) 
+      WPAR-VLR-UTIL-BCO-REAL WPAR-VLR-PLA-BCO WPAR-RC 
+* 
+    IF WPAR-RC NE 0 
+      ESCAPE BOTTOM 
+    END-IF 
+* 
+    #ACHOU := 1 
+* 
+    WAUX-VL-BLOQ-S2 := WPAR-VLR-BLOQ-TAB (2) 
+    WAUX-VL-UTIL-S2 := WPAR-VLR-UTIL-TAB (2) 
+    WAUX-VL-UTIL-S3 := WPAR-VLR-UTIL-TAB (3) 
+    WAUX-VL-UTIL-S4 := WPAR-VLR-UTIL-TAB (4) 
+* 
+    COMPUTE ROUNDED WAUX-VL-DISP-S2 = WAUX-LIM-APROV-S2 - 
+      WAUX-VL-UTIL-S2 - WAUX-VL-BLOQ-S2 
+    COMPUTE ROUNDED WAUX-VL-DISP-S3 = WAUX-LIM-APROV-S3 - 
+      WAUX-VL-UTIL-S3 
+    COMPUTE ROUNDED WAUX-VL-DISP-S4 = WAUX-LIM-APROV-S4 - 
+      WAUX-VL-UTIL-S4 
+* 
+    IF WAUX-VL-DISP-S3 LT 0 
+      COMPUTE ROUNDED WAUX-VL-DISP-S2= WAUX-VL-DISP-S2 + WAUX-VL-DISP-S3 
+    END-IF 
+* 
+    IF WAUX-VL-DISP-S4 LT 0 
+      COMPUTE ROUNDED WAUX-VL-DISP-S2= WAUX-VL-DISP-S2 + WAUX-VL-DISP-S4 
+    END-IF 
+* 
+    ADD 1 TO WIND-01 
+    WTEL-BANCO      (WIND-01) := #COD-BANCO 
+*    WTEL-NOME-BANCO (WIND-01) := COMPANY.NOM 
+    WTEL-NOME-BANCO (WIND-01) := WAUX-NM-HOLDING-S ( I1 )   /* 66355 
+* 
+    ASSIGN WAUX-DATA = DT-FIM-LIM-CREDITO-162 
+    COMPUTE WTEL-DT-VENC    (WIND-01) = 
+      WAUX-DIA * 1000000 + WAUX-MES * 10000 + WAUX-ANO 
+    WTEL-VLR-DIRIN-R (WIND-01) := WAUX-VL-DISP-S2 
+* 
+*   ADD 1 TO #VEZ 
+*   IF #VEZ EQ 1 
+*     MOVE WAUX-NOME-PAIS-S ( I1 ) TO WTEL-PAIS (WIND-01) 
+*     MOVE WAUX-NOME-PAIS-S ( I1 ) TO WAUX-NOME-P 
+*     WTEL-PAIS (WIND-01) := PAIS.NOM 
+*   ELSE 
+*     RESET WTEL-PAIS (WIND-01) 
+*   END-IF 
+* 
+*   G1 := I1 - 1 
+*   IF WAUX-NOME-PAIS-S ( I1 ) NE WTEL-PAIS (WIND-01) 
+    IF WAUX-NOME-PAIS-S ( I1 ) NE WAUX-NOME-P 
+       MOVE WAUX-NOME-PAIS-S ( I1 ) TO WTEL-PAIS (WIND-01) WAUX-NOME-P 
+    ELSE 
+       MOVE '               '       TO WTEL-PAIS (WIND-01) 
+    END-IF 
+* 
+    IF WIND-01 GE 495 
+      PERFORM MOSTRA-MAPA 
+      IF #FLAG EQ 1 
+        RESET WIND-01 MAPAS #FLAG 
+        ESCAPE BOTTOM 
+      END-IF 
+    END-IF 
+  END-FIND 
+  ESCAPE TOP 
+* END-SELECT 
+END-REPEAT 
+IF WIND-01 LE 0 
+  WIND-TL1 :=    1 
+  #CV(*)   := (AD=NP) 
+  INPUT WITH TEXT 
+    ' NAO HA INSTITUICAO FINANCEIRA COM LIMITE DIMEC.' 
+    USING MAP 'ANCM6813' 
+  IF *PF-KEY = 'PF3' 
+    FETCH 'ANCP6600' #MOEDA 
+  ELSE 
+    REINPUT ' Tecla invalida. Consulte o rodape.' ALARM 
+  END-IF 
+ELSE 
+  PERFORM MOSTRA-MAPA 
+END-IF 
+* ------------------------- * 
+DEFINE SUBROUTINE MOSTRA-MAPA 
+* ------------------------- * 
+ASSIGN WIND-TL1 = 1 
+* 
+FOR WIND-01 1 TO 495 
+  IF WTEL-BANCO(WIND-01) EQ 0 
+    #CV (WIND-01) := (AD=NP) 
+  END-IF 
+END-FOR 
+* 
+RP02. REPEAT 
+  INPUT USING MAP 'ANCM6813' 
+* 
+  DECIDE ON FIRST VALUE OF *PF-KEY 
+    VALUE 'PF3' , 'PF15' 
+      FETCH 'ANCP6600' #MOEDA 
+    VALUE 'PF5','PF17' 
+      TERMINATE 
+    VALUE 'PF6','PF18' 
+      FETCH RETURN 'ANCR6813' #MOEDA 
+    VALUE 'PF7','PF19' 
+      SUBTRACT 15 FROM WIND-TL1 
+      IF WIND-TL1 LE 0 
+        ADD 15 TO WIND-TL1 
+        REINPUT ' Primeira pagina' ALARM 
+      END-IF 
+    VALUE 'PF8','PF20' 
+      ADD 15 TO WIND-TL1 
+      IF WIND-TL1 GE 495 
+        RESET WIND-01 
+        #FLAG := 1 
+        ESCAPE ROUTINE 
+      END-IF 
+      IF WTEL-BANCO (WIND-TL1) EQ 0 AND WTEL-BANCO(WIND-TL1 + 1) EQ 0 
+        SUBTRACT 15 FROM WIND-TL1 
+        IF WIND-TL1 GE 480 
+          ESCAPE ROUTINE 
+        ELSE 
+          REINPUT ' Ultima pagina' ALARM 
+        END-IF 
+      END-IF 
+* 
+    VALUE 'PF10','PF22' 
+      FETCH 'ANCP5000' 
+* 
+    NONE 
+      REINPUT ' Tecla invalida' ALARM 
+  END-DECIDE 
+END-REPEAT 
+END-SUBROUTINE 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE BUSCA-NOME-PAIS 
+* -------------------------------------------------------------------- * 
+* 
+RESET #L006L-CD-RTN  #L006L-SQLCODE-RTN #L006L-TX-MSG-RTN 
+      #L006L-QT-REG-RTN #L006L-IN-REG 
+* 
+MOVE 5   TO  #L006L-CD-FUC-E   /* Pais Classif por NOME 
+MOVE 'S' TO #L006L-IND-ATVO-E  /* Indicador de Ativo (SIM) 
+* 
+SET CONTROL  'P=C' 
+CALL 'BCIS006L'  USING  #L-BCIS006L 
+* 
+IF #L006L-CD-RTN  NE 0 
+   ESCAPE BOTTOM 
+END-IF 
+* 
+* 
+FOR I 1 TO #L006L-QT-REG-RTN      /* LISTA OCORRêNCIAS PAIS    PAIS 
+  MOVE #L006L-COD( I ) TO #BDDAL088-CD-PAIS-ARG 
+*  IF #L006L-COD( I ) = 628 OR #L006L-COD( I ) = 72 
+*  END-IF 
+  PERFORM BUSCA-HOLDING-COMPANY 
+ REPEAT                                                        /* 66355 
+   UNTIL #BDDAL088-QTD-OCR <= 280 AND #BDDAL088-IN-CTNC = 'N'  /* 66355 
+         MOVE #BDDAL088-HC-ULT-ARG TO #BDDAL088-HC-ARG 
+   PERFORM BUSCA-HOLDING-COMPANY                               /* 66355 
+ END-REPEAT                                                    /* 66355 
+* 
+END-FOR 
+END-SUBROUTINE  /* BUSCA-NOME-PAIS 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE BUSCA-HOLDING-COMPANY 
+* -------------------------------------------------------------------- * 
+* CONSULTA HOLDING (SUBROTINA BDDS088L) 
+* 
+* MOVE 0          TO #BDDA088M-CD-ARG 
+* MOVE 'A'        TO #BDDA088M-NM-ARG 
+* 
+* PERFORM BDDS088L-LISTA-HOLDING  #BDDA088M #BDDAMENS 
+* 
+* IF #BDDAMENS-CD-MSG NE 0 
+*    ESCAPE BOTTOM           /* VERIFICAR O TRATAMENTO - ACAO 66355 
+* END-IF 
+* 
+RESET #BDDAMSG0-CD-ENT 
+      #BDDAMSG0-CD-ATB 
+      #BDDAMSG0-CD-SQLCODE 
+      #BDDAMSG0-NR-MSG 
+* 
+MOVE 'P'        TO #BDDAL088-ACAO 
+* 
+* 
+* SUBTRACT 1 FROM #BDDA088M-QT-REG 
+MOVE 0 TO L 
+* 
+  SET CONTROL  'P=C' 
+  CALL 'BDDSL088' #BDDAL088 
+* 
+  MOVE #BDDAL088-TX-MSG TO #BDDAMSG0 
+* 
+  IF #BDDAMSG0-CD-ENT     NE 0 OR 
+    #BDDAMSG0-CD-ATB     NE 0 OR 
+    #BDDAMSG0-CD-SQLCODE NE 0 OR 
+     #BDDAMSG0-NR-MSG   NE 0 
+     IGNORE 
+  END-IF 
+* 
+**  IF #L006L-COD( I ) = 628 OR #L006L-COD( I ) = 72    /* FICA AQUI 
+**  END-IF 
+* 
+  FOR K 1 TO #BDDAL088-QTD-OCR      /* LISTA OCORRêNCIAS PAIS 
+*     IF #L006L-COD( I ) = #BDDAL088-F-TABPAIS-COD ( K ) 
+         L := L + 1 
+* IF #L006L-COD( I ) = 628 
+* IF #BDDAL088-F-TABPAIS-COD ( K ) = 628 OR #L006L-COD( I ) = 72 
+* END-IF 
+         MOVE #L006L-NOM( I )      TO WAUX-NOME-PAIS  ( L ) 
+         MOVE #BDDAL088-COD( K )    TO WAUX-CD-HOLDING ( L ) 
+         MOVE #BDDAL088-NOM( K )   TO WAUX-NM-HOLDING ( L ) 
+          PERFORM BUSCA-RISCO 
+*      END-IF 
+  END-FOR 
+* 
+* FOR K 1 TO #BDDA088M-QT-REG       /* LISTA OCORRêNCIAS PAIS 
+*     IF #L006L-COD( I ) = #BDDA088M-F-TABPAIS-COD ( K ) 
+*        L := L + 1 
+*        MOVE #L006L-NOM( I )      TO WAUX-NOME-PAIS  ( L ) 
+*        MOVE #BDDA088M-CD( K )    TO WAUX-CD-HOLDING ( L ) 
+*        MOVE #BDDA088M-NM ( K )   TO WAUX-NM-HOLDING ( L ) 
+*        PERFORM BUSCA-RISCO 
+*     END-IF 
+* END-FOR 
+* END-FOR 
+* 
+END-SUBROUTINE  /* BUSCA-HOLDING-COMPANY 
+* -------------------------------------------------------------------- * 
+* DEFINE SUBROUTINE CARREGA-NOMES 
+* -------------------------------------------------------------------- * 
+* END-SUBROUTINE  /* CARREGA-NOMES 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE BUSCA-RISCO 
+* -------------------------------------------------------------------- * 
+* CONSULTA O RISCO DA HOLDING COMPANY 
+* 
+RESET #BDDA002A-ENTRADA #BDDA002A-SAIDA #BDDAMSG0 
+* 
+MOVE 'C'               TO  #BDDA002A-CD-ACAO 
+MOVE WAUX-CD-HOLDING ( L ) TO #BDDA002A-F-HLDGCPNY-COD 
+* 
+   SET CONTROL 'P=C' 
+   CALL 'BDDS002R' #BDDA002A-ENTRADA #BDDA002A-SAIDA 
+* 
+   MOVE #BDDA002A-TX-MSG TO #BDDAMSG0 
+   IF #BDDAMSG0-NR-MSG > 0 
+*     ESCAPE TOP 
+      IGNORE 
+   END-IF 
+* 
+* IF #L006L-COD( L ) = 628 AND ( WAUX-CD-HOLDING-S ( L ) = 4949  OR 
+*                               WAUX-CD-HOLDING-S ( L ) = 451 OR 
+*                               WAUX-CD-HOLDING-S ( L ) = 682 ) 
+* END-IF 
+* 
+  IF #BDDA002A-DTA-FIM-VLDE  = 31129999 
+      J := J + 1 
+      MOVE WAUX-NOME-PAIS  ( L ) TO WAUX-NOME-PAIS-S ( J ) 
+      MOVE WAUX-CD-HOLDING ( L ) TO   WAUX-CD-HOLDING-S ( J ) 
+      MOVE WAUX-NM-HOLDING ( L ) TO   WAUX-NM-HOLDING-S ( J ) 
+*       '  ' WAUX-NM-HOLDING-S ( J ) 
+* 
+* #COD-BANCO := WAUX-CD-HOLDING-S ( J ) 
+* 
+   END-IF 
+* 
+END-SUBROUTINE  /* BUSCA-RISCO 
+* 
+END 

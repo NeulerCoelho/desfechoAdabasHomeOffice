@@ -1,0 +1,434 @@
+* ----------------------------------------------------------------------
+*  PROGRAMA: ANCP6858
+*  ANALISTA..: H443057
+*  AUTOR.....: H443057
+*  SISTEMA.: ANC
+*  OBJETIVO:
+* ----------------------------------------------------------------------
+************************************************************************ 
+* Sistema    : ANC - Analise de clientes                               * 
+* Programa   : ANCP6858                                                * 
+* Programador: Joao Teodoro                                            * 
+* Analista   : Joao Teodoro                                            * 
+* Objetivo   : Historico de limites de credito.                        * 
+* Descricao  : Recebe o codigo do banco e mostra os dados relacionados * 
+*            : aos limites que lhe foram concedidos.                   * 
+************************************************************************ 
+* TRANSFERENCIA SEM BIND                                               * 
+************************************************************************ 
+* VRS007-06.04.15-MISAEL    -SSTI DMD 2014/133433 ORDENACAO HISTORICO  * 
+* VRS003-15.10.07-Weuller   -Recompilado devido alteração do campo     * 
+*                            NR-PRAZO-OPERACAO-162 view ANC162-LIMITE. * 
+* VRS005-30.06.04-LUCIA Mª- TRATAMENTO E CONTROLE DA QUANTIDADE DE     * 
+*                           OCORRENCIAS APRESENTADAS NA TELA (20 P 40) * 
+* VRS004-28.05.04-WEULLER - RETIRADA DE DISPLAY                        * 
+* VRS003-07.05.04-OCTAVIO - TRATAR STATUS DO LIMITE                    * 
+* VRS002-28.11.02-OCTAVIO - PERMITIR A CONSULTA DE LIMITES SUPERIOR A  * 
+*                           15% DO PR DO BANCO                         * 
+*                           DEMANDA DITEC-DF 2002/24121                * 
+* VRS001-07/01/2000-JOAO TEODORO-IMPLANTACAO                           * 
+* -------------------------------------------------------------------- * 
+DEFINE DATA LOCAL 
+* 
+01 #NOME-BANCO  (A55) 
+01 #COD-SITUA   (A01) 
+01 #DTA-SITUA   (A10) 
+01 #COD-NATUR   (A01) 
+01 #COD-PAIS    (N03) 
+01 #NOME-PAIS   (A25) 
+01 #IND-ATIVO   (A01) 
+01 #RISCO       (A01) 
+01 #RC          (N01) 
+  /* 0 - execucao normal 
+  /* 1 - Banco nao encontrado 
+  /* 2 - Banco nao esta ativo 
+  /* 3 - Holding nao bancaria 
+  /* 4 - Inst. sede/Praca/Pais nao encontrado 
+  /* 5 - Risco nao informado 
+* 
+01 #MAPA-1 
+  02 WTEL-COD-BANCO       (I04) 
+  02 WTEL-NOME-BANCO      (A50) 
+  02 WTEL-CLASSE          (A01) 
+  02 WTEL-SITUACAO-BANCO  (A09) 
+  02 WTEL-COD-PAIS        (N03) 
+  02 WTEL-NOME-PAIS       (A30) 
+  02 WTEL-COD-MOEDA       (N03) 
+  02 WTEL-NOME-MOEDA      (A20) 
+01 #MAPA-2 
+  02 WTEL-INI-VIGENCIA    (N08/40) 
+  02 WTEL-FIM-VIGENCIA    (N08/40) 
+  02 WTEL-DATA-INI        (N08/40) 
+  02 WTEL-DATA-VENC       (N08/40) 
+  02 WTEL-DT-REV          (N08/40) 
+  02 WTEL-ALCADA-LA       (A30/40) 
+  02 WTEL-VLR-PLA         (P13,2/40) 
+  02 WTEL-VLR-LC          (P13,2/40) 
+  02 WTEL-VLR-LA          (P13,2/40) 
+  02 WTEL-PRAZO           (A9/40) 
+  02 WTEL-SUBLIMITE-1     (P13,2/40) 
+  02 WTEL-SUBLIMITE-2     (P13,2/40) 
+  02 WTEL-SUBLIMITE-3     (P13,2/40) 
+  02 WTEL-SUBLIMITE-4     (P13,2/40) 
+  02 WTEL-MATRICULA       (N09/40) 
+  02 WTEL-NOME            (A30/40) 
+  02 WTEL-DT-ATUAL        (N8/40) 
+  02 WTEL-HR-ATUAL        (A8/40) 
+  02 WTEL-SITUACAO        (A10/40) 
+  02 WTEL-MOTIVO          (A50/40) 
+  02 #MSG                 (A70) 
+* 
+01 #AUXILIARES 
+  02 WAUX-SUBLIMITE-TOT      (N13,2/4) 
+  02 WAUX-VLR-PLA            (N13,2) 
+  02 WAUX-VLR-LC             (N13,2) 
+  02 WAUX-VLR-LA             (N13,2) 
+  02 WAUX-INI-VIGENCIA-DMA   (N8) 
+  02 REDEFINE WAUX-INI-VIGENCIA-DMA 
+    03 WAUX-DIA-INI-VIG      (N02) 
+    03 WAUX-MES-INI-VIG      (N02) 
+    03 WAUX-ANO-INI-VIG      (N04) 
+  02 WAUX-FIM-VIGENCIA-DMA   (N8) 
+  02 REDEFINE WAUX-FIM-VIGENCIA-DMA 
+    03 WAUX-DIA-FIM-VIG      (N02) 
+    03 WAUX-MES-FIM-VIG      (N02) 
+    03 WAUX-ANO-FIM-VIG      (N04) 
+  02 WAUX-DATA-INI-DMA       (N8) 
+  02 REDEFINE WAUX-DATA-INI-DMA 
+    03 WAUX-DIA-INI          (N02) 
+    03 WAUX-MES-INI          (N02) 
+    03 WAUX-ANO-INI          (N04) 
+  02 WAUX-DATA-VENC-DMA      (N8) 
+  02 REDEFINE WAUX-DATA-VENC-DMA 
+    03 WAUX-DIA-VENC         (N02) 
+    03 WAUX-MES-VENC         (N02) 
+    03 WAUX-ANO-VENC         (N04) 
+  02 WAUX-DT-REV-DMA         (N8) 
+  02 REDEFINE WAUX-DT-REV-DMA 
+    03 WAUX-DIA-REV          (N02) 
+    03 WAUX-MES-REV          (N02) 
+    03 WAUX-ANO-REV          (N04) 
+  02 WAUX-VLR-PADRAO-PLA     (P15) 
+  02 REDEFINE WAUX-VLR-PADRAO-PLA 
+    03 WAUX-VLR-PADRAO-PLA-R (P13,2) 
+  02 WAUX-VLR-PADRAO-LC      (P15) 
+  02 REDEFINE WAUX-VLR-PADRAO-LC 
+    03 WAUX-VLR-PADRAO-LC-R  (P13,2) 
+  02 WAUX-VLR-PADRAO-LA      (P15) 
+  02 REDEFINE WAUX-VLR-PADRAO-LA 
+    03 WAUX-VLR-PADRAO-LA-R  (P13,2) 
+  02 WAUX-DT-ATUAL-DMA       (N8) 
+  02 REDEFINE WAUX-DT-ATUAL-DMA 
+    03 WAUX-LINHA-DD         (N02) 
+    03 WAUX-LINHA-MM         (N02) 
+    03 WAUX-LINHA-AA         (N04) 
+  02 WAUX-HR-ATUAL-F         (A8) 
+  02 REDEFINE WAUX-HR-ATUAL-F 
+    03 WAUX-LINHA-HOR        (N02) 
+    03 WAUX-SEPAR            (A01) 
+    03 WAUX-LINHA-MIN        (N02) 
+    03 WAUX-SEPAR2           (A01) 
+    03 WAUX-LINHA-SEG        (N02) 
+* 
+01 #AUXILIARES-2 
+  02 #IND               (N03) 
+  02 WIND               (N07) 
+  02 WIND-TL            (N07) INIT <1> 
+  02 WAUX-COTACAO-REAL  (N8,7) 
+  02 #CONT-SUBLIM       (N2) 
+* 
+01 ANC162 VIEW OF ANC162-LIMITE 
+  02 CD-INST-FINANCEIRA-162 
+  02 DT-FIM-VIGENCIA-162 
+  02 REDEFINE DT-FIM-VIGENCIA-162 
+    03 ANO-FIM-VIG (N4) 
+    03 MES-FIM-VIG (N2) 
+    03 DIA-FIM-VIG (N2) 
+  02 VL-PLA-INST-FINAC-162 
+  02 VL-LIM-CALCULADO-162 
+  02 VL-LIM-APROVADO-162 
+  02 DT-INI-LIM-CREDITO-162 
+  02 REDEFINE DT-INI-LIM-CREDITO-162 
+    03 ANO-INI-162 (N4) 
+    03 MES-INI-162 (N2) 
+    03 DIA-INI-162 (N2) 
+  02 DT-FIM-LIM-CREDITO-162 
+  02 REDEFINE DT-FIM-LIM-CREDITO-162 
+    03 ANO-FIM-162 (N4) 
+    03 MES-FIM-162 (N2) 
+    03 DIA-FIM-162 (N2) 
+  02 DT-INI-VIGENCIA-162 
+  02 REDEFINE DT-INI-VIGENCIA-162 
+    03 ANO-INI-VIG (N4) 
+    03 MES-INI-VIG (N2) 
+    03 DIA-INI-VIG (N2) 
+  02 NR-PRAZO-OPERACAO-162 
+  02 NR-MATRICULA-162 
+  02 REDEFINE NR-MATRICULA-162 
+    03 FILLER              6X 
+    03 MATRICULA-TRUNCADA  (N9) 
+  02 DT-ATUALIZACAO-162 
+  02 REDEFINE DT-ATUALIZACAO-162 
+    03 ANO-ATUALIZ (N4) 
+    03 MES-ATUALIZ (N2) 
+    03 DIA-ATUALIZ (N2) 
+  02 HR-ATUALIZACAO-162 
+  02 REDEFINE HR-ATUALIZACAO-162 
+    03 HOR-ATUALIZ (N2) 
+    03 MIN-ATUALIZ (N2) 
+    03 SEG-ATUALIZ (N2) 
+  02 NM-ALCADA-LIM-APROVADO-162 
+  02 DT-REVISAO-LIM-162 
+  02 REDEFINE DT-REVISAO-LIM-162 
+    03 ANO-REV-162 (N4) 
+    03 MES-REV-162 (N2) 
+    03 DIA-REV-162 (N2) 
+  02 SUBLIMITE-INST-FINANC-162 
+    03 CD-SUBLIMITE-162           (1:4) 
+    03 PC-LIMITE-AUTORIZADO-162   (1:4) 
+    03 REDEFINE PC-LIMITE-AUTORIZADO-162 
+      04 OCORRE (4) 
+        05 FILLER                         (N10) 
+        05 PC-LIMITE-AUTORIZADO-162-N32   (N3,2) 
+  02 ST-SITUACAO-162 
+  02 TX-MOTIVO-SITUACAO-162 
+* 
+INDEPENDENT 
+01 +CHAVE                (A08) 
+01 +CHAVE-ANT            (A08) 
+01 +MATRICULA            (N15) 
+01 +CPF-USUARIO          (N11) 
+01 +NOME                 (A35) 
+01 +DEP-ACESSO           (N04) 
+01 +TIPO-DEPENDENCIA     (N02) 
+01 +FUNCAO-QAG           (N03) 
+01 +DIRETORIA-VINCULADA  (N04) 
+01 +SUPER-REGIONAL       (N04) 
+01 +CESEC-CRH            (N04) 
+01 +SUPER-ESTAD-VINC     (N04) 
+01 +CESEC-VINCULADO      (N04) 
+* 
+END-DEFINE 
+* -------------------------------------------------------------------- * 
+SET KEY ALL 
+SET CONTROL 'M-2' 
+* 
+INPUT 
+  WTEL-COD-BANCO WTEL-COD-MOEDA WAUX-COTACAO-REAL 
+* 
+IF WTEL-COD-MOEDA = 790 
+  MOVE 'REAL'  TO WTEL-NOME-MOEDA 
+ELSE 
+  MOVE 'DOLAR' TO WTEL-NOME-MOEDA 
+END-IF 
+* 
+IF +PROGRAM = ' ' 
+  MOVE 'ANCP6801' TO +PROGRAM 
+END-IF 
+* 
+PERFORM VERIFICAR-HOLDING WTEL-COD-BANCO #NOME-BANCO #COD-SITUA 
+  #DTA-SITUA #COD-NATUR #COD-PAIS #NOME-PAIS #IND-ATIVO #RISCO #RC 
+IF #COD-SITUA = '1' 
+  WTEL-SITUACAO-BANCO := 'NORMAL' 
+ELSE 
+  IF #COD-SITUA = '2' 
+    WTEL-SITUACAO-BANCO := 'FUSAO' 
+  ELSE 
+    IF #COD-SITUA = '3' 
+      WTEL-SITUACAO-BANCO := 'CISAO' 
+    ELSE 
+      WTEL-SITUACAO-BANCO := 'CANCELADA' 
+    END-IF 
+  END-IF 
+END-IF 
+WTEL-COD-PAIS   := #COD-PAIS 
+WTEL-NOME-PAIS  := #NOME-PAIS 
+WTEL-NOME-BANCO := #NOME-BANCO 
+WTEL-CLASSE     := #RISCO 
+* 
+PERFORM LER-LIMITE162 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE MOSTRA-MAPA 
+* -------------------------------------------------------------------- * 
+* 
+RESET #MSG 
+ASSIGN WIND-TL = 1 
+REPEAT 
+  INPUT WITH TEXT #MSG USING MAP 'ANCM6858' 
+  DECIDE ON FIRST VALUE *PF-KEY 
+    VALUE 'PF3' , 'PF15' 
+      FETCH +PROGRAM WTEL-COD-MOEDA 
+    VALUE 'PF5' , 'PF17' 
+      TERMINATE 
+    VALUE 'PF7' , 'PF19' 
+      RESET #MSG 
+      SUBTRACT 1 FROM WIND-TL 
+      IF WIND-TL LE 0 
+        ADD 1 TO WIND-TL 
+        REINPUT ' Primeira ocorrencia' ALARM 
+      END-IF 
+    VALUE 'PF8' , 'PF20' 
+      ADD 1 TO WIND-TL 
+      IF WIND-TL EQ 40 
+        MOVE ' Foram apresentados 40 historicos de limite.'- 
+          ' Tecle F8 para continuar.' TO #MSG 
+      END-IF 
+      IF WIND-TL = 41 
+        WIND    := 0 
+        WIND-TL := 1 
+        ESCAPE ROUTINE 
+      END-IF 
+      IF WIND-TL GT WIND 
+        SUBTRACT 1 FROM WIND-TL 
+        REINPUT ' Ultima ocorrencia' ALARM 
+      END-IF 
+    VALUE 'PF10','PF22' 
+      FETCH 'ANCP5000' 
+    NONE 
+      REINPUT ' Tecla invalida' 
+  END-DECIDE 
+END-REPEAT 
+END-SUBROUTINE 
+* ----------------------------- * 
+DEFINE SUBROUTINE LER-LIMITE162 
+* ----------------------------- * 
+* 
+FIND ANC162 WITH CD-INST-FINANCEIRA-162 = WTEL-COD-BANCO 
+    SORTED BY DT-ATUALIZACAO-162 HR-ATUALIZACAO-162 DESCENDING 
+* 
+  IF NO 
+    INPUT WITH TEXT ' Instituicao nao possui registro de limites.' 
+      USING MAP 'ANCM6858' 
+    FETCH +PROGRAM WTEL-COD-MOEDA 
+  END-NOREC 
+* 
+  RESET #AUXILIARES 
+  ADD 1 TO WIND 
+* 
+* 
+  +MATRICULA := NR-MATRICULA-162 
+  RESET +CHAVE 
+    +CHAVE-ANT +CPF-USUARIO 
+    +NOME +DEP-ACESSO +TIPO-DEPENDENCIA 
+    +FUNCAO-QAG +DIRETORIA-VINCULADA +SUPER-REGIONAL +CESEC-CRH 
+    +SUPER-ESTAD-VINC +CESEC-VINCULADO 
+  CALLNAT 'ACEN0003' 
+  WTEL-NOME(WIND)      := +NOME 
+  WTEL-MATRICULA(WIND) := MATRICULA-TRUNCADA 
+* 
+  ASSIGN ROUNDED WAUX-VLR-PADRAO-LA-R  = VL-LIM-APROVADO-162 
+  ASSIGN ROUNDED WAUX-VLR-PADRAO-LC-R  = VL-LIM-CALCULADO-162 
+  ASSIGN ROUNDED WAUX-VLR-PADRAO-PLA-R = VL-PLA-INST-FINAC-162 
+  IF WTEL-COD-MOEDA NE 220 
+    COMPUTE ROUNDED  WAUX-VLR-LA  = WAUX-VLR-PADRAO-LA-R 
+      * WAUX-COTACAO-REAL 
+    COMPUTE ROUNDED  WAUX-VLR-LC  = WAUX-VLR-PADRAO-LC-R 
+      * WAUX-COTACAO-REAL 
+    COMPUTE ROUNDED  WAUX-VLR-PLA = WAUX-VLR-PADRAO-PLA-R 
+      * WAUX-COTACAO-REAL 
+  ELSE 
+    ASSIGN ROUNDED WAUX-VLR-LA  = WAUX-VLR-PADRAO-LA-R 
+    ASSIGN ROUNDED WAUX-VLR-LC  = WAUX-VLR-PADRAO-LC-R 
+    ASSIGN ROUNDED WAUX-VLR-PLA = WAUX-VLR-PADRAO-PLA-R 
+  END-IF 
+  WTEL-VLR-PLA(WIND) := WAUX-VLR-PLA 
+  WTEL-VLR-LA(WIND)  := WAUX-VLR-LA 
+  WTEL-VLR-LC(WIND)  := WAUX-VLR-LC 
+* 
+  WTEL-ALCADA-LA(WIND) := NM-ALCADA-LIM-APROVADO-162 
+  WAUX-DIA-INI := DIA-INI-162 
+  WAUX-MES-INI := MES-INI-162 
+  WAUX-ANO-INI := ANO-INI-162 
+  WTEL-DATA-INI(WIND) := WAUX-DATA-INI-DMA 
+  WAUX-DIA-VENC := DIA-FIM-162 
+  WAUX-MES-VENC := MES-FIM-162 
+  WAUX-ANO-VENC := ANO-FIM-162 
+  WTEL-DATA-VENC(WIND) := WAUX-DATA-VENC-DMA 
+  WAUX-DIA-REV := DIA-REV-162 
+  WAUX-MES-REV := MES-REV-162 
+  WAUX-ANO-REV := ANO-REV-162 
+  WTEL-DT-REV(WIND) := WAUX-DT-REV-DMA 
+  WAUX-DIA-INI-VIG := DIA-INI-VIG 
+  WAUX-MES-INI-VIG := MES-INI-VIG 
+  WAUX-ANO-INI-VIG := ANO-INI-VIG 
+  WTEL-INI-VIGENCIA(WIND) := WAUX-INI-VIGENCIA-DMA 
+  WAUX-DIA-FIM-VIG := DIA-FIM-VIG 
+  WAUX-MES-FIM-VIG := MES-FIM-VIG 
+  WAUX-ANO-FIM-VIG := ANO-FIM-VIG 
+  WTEL-FIM-VIGENCIA(WIND) := WAUX-FIM-VIGENCIA-DMA 
+  WAUX-LINHA-DD := DIA-ATUALIZ 
+  WAUX-LINHA-MM := MES-ATUALIZ 
+  WAUX-LINHA-AA := ANO-ATUALIZ 
+  WTEL-DT-ATUAL(WIND)  := WAUX-DT-ATUAL-DMA 
+  WAUX-LINHA-HOR := HOR-ATUALIZ 
+  WAUX-SEPAR     := ':' 
+  WAUX-LINHA-MIN := MIN-ATUALIZ 
+  WAUX-SEPAR2    := ':' 
+  WAUX-LINHA-SEG := SEG-ATUALIZ 
+  WTEL-HR-ATUAL(WIND)  := WAUX-HR-ATUAL-F 
+  WTEL-MOTIVO(WIND) := TX-MOTIVO-SITUACAO-162 
+  IF NR-PRAZO-OPERACAO-162 = 0 OR= 1 
+    COMPRESS NR-PRAZO-OPERACAO-162 'DIA' INTO WTEL-PRAZO(WIND) 
+  ELSE 
+    IF NR-PRAZO-OPERACAO-162 = 999 OR= 9999 
+      MOVE 'ILIMITADO' TO WTEL-PRAZO(WIND) 
+    ELSE 
+      COMPRESS NR-PRAZO-OPERACAO-162 'DIAS' INTO WTEL-PRAZO(WIND) 
+    END-IF 
+  END-IF 
+* 
+  FOR #CONT-SUBLIM 1 TO 4 
+    IF CD-SUBLIMITE-162(#CONT-SUBLIM) NE 0 
+      #IND := CD-SUBLIMITE-162(#CONT-SUBLIM) 
+      COMPUTE ROUNDED WAUX-SUBLIMITE-TOT(#IND) = 
+        PC-LIMITE-AUTORIZADO-162-N32(#IND) 
+*       ((WAUX-VLR-LA * PC-LIMITE-AUTORIZADO-162-N32(#IND)) / 100:00) 
+    END-IF 
+  END-FOR 
+  WTEL-SUBLIMITE-1(WIND) := WAUX-SUBLIMITE-TOT (1) 
+  WTEL-SUBLIMITE-2(WIND) := WAUX-SUBLIMITE-TOT (2) 
+  WTEL-SUBLIMITE-3(WIND) := WAUX-SUBLIMITE-TOT (3) 
+  WTEL-SUBLIMITE-4(WIND) := WAUX-SUBLIMITE-TOT (4) 
+* 
+* 
+  IF ST-SITUACAO-162 = 'C' 
+    WTEL-SITUACAO(WIND) := 'CANCELADO' 
+  ELSE 
+    IF ST-SITUACAO-162 = 'S' 
+      WTEL-SITUACAO(WIND) := 'SUSPENSO' 
+    ELSE 
+      IF ST-SITUACAO-162 = 'A' 
+        IF DT-FIM-LIM-CREDITO-162 LT DT-ATUALIZACAO-162 
+          WTEL-SITUACAO(WIND) := 'VENCIDO' 
+        ELSE 
+          WTEL-SITUACAO(WIND) := 'ATIVO' 
+        END-IF 
+      ELSE 
+        IF ST-SITUACAO-162 = 'P' 
+          WTEL-SITUACAO(WIND) := 'PENDENTE' 
+        END-IF 
+      END-IF 
+      IF ST-SITUACAO-162 = 'R' 
+        WTEL-SITUACAO(WIND) := 'C/RESTRIC.' 
+      ELSE 
+        IF ST-SITUACAO-162 = 'I' 
+          WTEL-SITUACAO(WIND) := 'ISENTO' 
+        END-IF 
+      END-IF 
+    END-IF 
+  END-IF 
+* 
+  IF WIND = 40 
+    PERFORM MOSTRA-MAPA 
+  END-IF 
+* 
+END-FIND 
+* 
+IF WIND GT 0 
+  PERFORM MOSTRA-MAPA 
+END-IF 
+* 
+END-SUBROUTINE  /*LER-LIMITE162 
+* 
+END 

@@ -1,0 +1,441 @@
+* ----------------------------------------------------------------------
+*  PROGRAMA: ANCP6811
+*  ANALISTA..: H443057
+*  AUTOR.....: H443057
+*  SISTEMA.: ANC
+*  OBJETIVO:
+* ----------------------------------------------------------------------
+************************************************************************ 
+* Sistema     : ANC - Analise de clientes                              * 
+* Programa    : ANCP6811                                               * 
+* Programadora: Viviane Siqueira                                       * 
+* Analista    : Joao Teodoro                                           * 
+* Data        : 21-12-1999                                             * 
+* Funcao      : Consulta a bancos com excesso de limite                * 
+**************************-------------------------------------------- * 
+* TRANSFERENCIA COM BIND *                                             * 
+**************************-------------------------------------------- * 
+* VRS009-10.08.10-Delmar  - Retira acesso direto a tabela DB2BCI-PAIS  * 
+*                           AÇÃO 66355.                                * 
+*                           Retira acesso de DB2BDD-HOLDING_COMPANY    * 
+* VRS008-04.01.08-Zolet   - Aumenta array de moedas para 300 ocorrenc  * 
+* VRS007-04.06.04-Tereza  - Inclusao da mensagem de aguardando proc... * 
+* VRS006-28.05.04-Lucia  Mª.Retirada de display                        * 
+* VRS005-15.11.00-Viviane S.Mudança da rotina Usu-1100-Batch p/Gim705/6* 
+* VRS004-17/03/00-Viviane S.-Passagem do parametro cotacao p/ impressao* 
+* VRS003-16/03/00-Viviane S.-Ajuste do tamanho da tabela de moedas     * 
+* VRS002-28/01/00-Viviane S.-Ajuste das variaveis banco e pais         * 
+* VRS001-21/12/99-VIVIANE S.-Implantacao                               * 
+* -------------------------------------------------------------------- * 
+DEFINE DATA 
+LOCAL USING BCIL006R             /* AÇÃO 66355 
+LOCAL USING BDDAL088             /* AÇÃO 66355 
+LOCAL USING BDDAMSG0             /* AÇÃO 66355 
+LOCAL 
+* 
+01 MAPAS 
+  02 #NOM-BANCO                   (A60/195) 
+  02 #COD-BANCO                   (I04/195) 
+  02 #PAIS                        (A30/195) 
+  02 #IND-TEL                     (N07) INIT <1> 
+  02 #MSG                         (A70) 
+* 
+  02 #LIMITE-APRV                 (P15/195) 
+  02 REDEFINE #LIMITE-APRV 
+    03 #LIMITE-APRV-P13           (P13,2/195) 
+* 
+  02 #SDO-UTIL                    (P15/195) 
+  02 REDEFINE #SDO-UTIL 
+    03 #SDO-UTIL-P13              (P13,2/195) 
+* 
+  02 #VLR-EXC                     (P15/195) 
+  02 REDEFINE #VLR-EXC 
+    03 #VLR-EXC-P3                (P13,2/195) 
+* 
+01 #CV                            (C / 195) 
+01 #NOM-MOEDA                     (A05) 
+01 #LIMITE-APROV                  (P13,2) 
+01 #UTILIZADO                     (P13,2) 
+01 #BLOQUEADO                     (P13,2) 
+01 #COT-REAL                      (N08,7) 
+01 #TOTAL                         (P13,2) 
+01 #UTIL                          (N13,2) 
+01 #EXCESSO                       (N15) 
+01 #LIMITE                        (N15) 
+01 #MOEDA                         (N03) 
+01 #IND                           (N03) 
+01 #IND-01                        (I02) 
+01 #CONT-REG                      (N05) 
+01 #BANCO                         (N05) 
+* 
+01 SUB-VLR-UTIL-TAB-REAL          (P13,2/10) 
+01 SUB-VLR-UTIL-TAB               (P13,2/10) 
+01 SUB-VLR-BLOQ-TAB               (P13,2/10) 
+01 SUB-VLR-UTIL-BCO-REAL          (P13,2) 
+01 SUB-VLR-UTIL-BANCO             (P13,2) 
+01 SUB-VLR-BLOQ-BANCO             (P13,2) 
+01 SUB-COTACAO-MOEDA              (N08,7) 
+01 SUB-VLR-PLA-BCO                (P13,2) 
+01 SUB-COD-RETORNO                (N01) 
+01 SUB-COD-BANCO                  (I04) 
+01 SUB-COD-MOEDA                  (N03) 
+01 SUB-MULTI-DIV                  (P01) 
+* 
+01 ANC162-LIMITE VIEW OF ANC162-LIMITE 
+  02 CD-INST-FINANCEIRA-162 
+  02 VL-LIM-APROVADO-162 
+  02 DT-FIM-VIGENCIA-162 
+  02 ST-SITUACAO-162 
+* 
+* 01 HOLDING VIEW OF DB2BDD-HOLDING_COMPANY 
+*  02 COD 
+*  02 NOM 
+*  02 F_TABPAIS_COD 
+* 
+* 01 PAIS VIEW OF DB2BCI-PAIS 
+*  02 COD 
+*  02 NOM 
+* 
+01 RISCO VIEW OF DB2BDD-RISCO_HC 
+  02 COD 
+  02 DTA_FIM_VLDE 
+  02 F_HLDGCPNY_COD 
+* 
+INDEPENDENT 
+01 +GD-TAB-MOEDA-VALOR            (A39/300) 
+01 REDEFINE +GD-TAB-MOEDA-VALOR 
+  02 OCORRE                       (300) 
+    03 #GD-COD-MOEDA              (N03) 
+    03 #GD-NOME-MOEDA             (A20) 
+    03 #GD-PARIDADE               (N08,7) 
+    03 #GD-MULTIDIV               (N01) 
+* 
+END-DEFINE 
+* 
+SET KEY ALL 
+SET CONTROL 'M-2' 
+* 
+INPUT #MOEDA 
+#CV (*)  := (AD=N) 
+* 
+IF #MOEDA EQ 790 
+  #NOM-MOEDA := ' REAL' 
+ELSE 
+  #NOM-MOEDA  := 'DOLAR' 
+END-IF 
+* 
+FOR #IND 1 TO 300 
+  IF #GD-COD-MOEDA(#IND)  = #MOEDA 
+    ASSIGN #COT-REAL  = #GD-PARIDADE(#IND) 
+    ASSIGN SUB-MULTI-DIV  = #GD-MULTIDIV(#IND) 
+    RESET #IND 
+    ESCAPE BOTTOM 
+  END-IF 
+END-FOR 
+* 
+* SELECT COD, NOM, F_TABPAIS_COD 
+*    INTO HOLDING.COD, HOLDING.NOM, F_TABPAIS_COD 
+*    FROM DB2BDD-HOLDING_COMPANY 
+*    ORDER BY COD 
+* 
+* RETIRA ACESSO DIRETO DB2BDD-HOLDING_COMPANY  -  ACAO 66355 
+* 
+MOVE 'C' TO #BDDAL088-ACAO 
+MOVE 0   TO #BDDAL088-HC-ARG 
+PERFORM CONSULTA-IF 
+* 
+REPEAT                                                        /* 66355 
+  UNTIL #BDDAL088-QTD-OCR <= 280 AND #BDDAL088-IN-CTNC = 'N'  /* 66355 
+    IF #BDDAL088-ACAO EQ 'C' 
+       MOVE 0                    TO #BDDAL088-CD-PAIS-ARG 
+       MOVE #BDDAL088-HC-ULT-ARG TO #BDDAL088-HC-ARG 
+    END-IF 
+   PERFORM CONSULTA-IF 
+END-REPEAT 
+* 
+IF #BANCO GT 0 
+  IF #IND EQ 194 
+    ADD 1 TO #IND 
+  ELSE 
+    ADD 2 TO #IND 
+  END-IF 
+  COMPRESS 'TOTAL:  ' #BANCO INTO #NOM-BANCO(#IND) 
+  #CV               (#IND)  := (AD=D) 
+  #LIMITE-APRV-P13  (#IND)  := #LIMITE 
+  #SDO-UTIL-P13     (#IND)  := #UTIL 
+  #VLR-EXC          (#IND)  := #EXCESSO 
+END-IF 
+* 
+IF #IND GT 0 
+  PERFORM R010-MOSTRA-MAPA6020 
+ELSE 
+  #IND-TEL := 1 
+  INPUT WITH TEXT 
+    ' Nao ha Inst. Financeira com limite excedido.'- 
+    ' Tecle <ENTER>.' USING MAP 'ANCM6811' 
+* 
+END-IF 
+FETCH 'ANCP6801' #MOEDA 
+* 
+* ------------------------------ *                            /* 66355 
+DEFINE SUBROUTINE CONSULTA-IF                                 /* 66355 
+* ------------------------------ *                            /* 66355 
+*                                                             /* 66355 
+RESET #BDDAMSG0-CD-ENT 
+      #BDDAMSG0-CD-ATB 
+      #BDDAMSG0-CD-SQLCODE 
+      #BDDAMSG0-NR-MSG 
+*                                                             /* 66355 
+SET CONTROL  'P=C'                                            /* 66355 
+CALL 'BDDSL088' #BDDAL088 
+* 
+MOVE #BDDAL088-TX-MSG TO #BDDAMSG0 
+* 
+IF #BDDAMSG0-CD-ATB     NE 0 OR 
+   #BDDAMSG0-CD-SQLCODE NE 0 OR 
+   #BDDAMSG0-NR-MSG     NE 0 
+   COMPRESS 'ERRO  BDDSL088 Ý' #BDDAMSG0-CD-SQLCODE '¨' 
+   INTO #MSG 
+   INPUT WITH TEXT #MSG USING MAP 'ANCM6811' 
+END-IF 
+* 
+DECIDE ON FIRST VALUE OF #BDDAMSG0-CD-ATB                     /* 66355 
+  VALUE 0                                                     /* 66355 
+* 
+    FOR #IND-01 1 TO #BDDAL088-QTD-OCR  /* LISTA OCORRêNCIAS  /* 66355 
+* 
+* 
+  PERFORM RTN-CONTROLE-PRC 
+* 
+* FIND ANC162-LIMITE WITH CD-INST-FINANCEIRA-162 = HOLDING.COD 
+  FIND ANC162-LIMITE WITH CD-INST-FINANCEIRA-162 = 
+       #BDDAL088-COD(#IND-01) 
+      AND DT-FIM-VIGENCIA-162 EQ 99999999 
+    IF NO 
+      RESET 
+        CD-INST-FINANCEIRA-162 
+        VL-LIM-APROVADO-162 
+        DT-FIM-VIGENCIA-162 
+      IGNORE 
+    END-NOREC 
+* 
+    PERFORM RTN-CONTROLE-PRC 
+* 
+    SUB-COD-BANCO     := #BDDAL088-COD(#IND-01) 
+    SUB-COD-MOEDA     := #MOEDA 
+    SUB-COTACAO-MOEDA := #COT-REAL 
+* 
+    PERFORM RTN-ACESSA-ANCN6000 
+* 
+  END-FIND 
+* 
+* END-SELECT 
+* 
+    END-FOR                                                   /* 66355 
+* 
+  VALUE 9                                                     /* 66355 
+    COMPRESS 'HOLDING NAO ENCONTRADA Ý' #BDDAMSG0-CD-SQLCODE '¨' 
+      INTO #MSG 
+      INPUT WITH TEXT #MSG USING MAP 'ANCM6811' 
+    #BDDAL088-IN-CTNC := 'N'                                   /* 66355 
+    ESCAPE ROUTINE                                            /* 66355 
+  NONE                                                        /* 66355 
+    COMPRESS 'ERRO  BDDSL088 Ý' #BDDAMSG0-CD-SQLCODE '¨' 
+      INTO #MSG                                               /* 66355 
+      INPUT WITH TEXT #MSG USING MAP 'ANCM6811' 
+    #BDDAL088-IN-CTNC := 'N'                                   /* 66355 
+    ESCAPE ROUTINE                                            /* 66355 
+END-DECIDE                                                    /* 66355 
+* 
+/* Controle de rechamada  *                                   /* 66355 
+SUBTRACT 1 FROM #IND-01                                       /* 66355 
+IF #IND-01 NE 0 AND                                           /* 66355 
+    #IND-01 < 280                                             /* 66355 
+  #BDDAL088-IN-CTNC := 'N'                                     /* 66355 
+END-IF                                                        /* 66355 
+/* Fim controle rechamada *                                   /* 66355 
+* 
+END-SUBROUTINE /* CONSULTA-IF                                 /* 66355 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE RTN-CONTROLE-PRC 
+* -------------------------------------------------------------------- * 
+* 
+ADD 1 TO #CONT-REG 
+IF #CONT-REG GT 1000 
+  #IND-TEL := 1 
+  RESET #CONT-REG 
+  SET CONTROL 'N' 
+  #MSG  := 
+    ' Aguarde em processamento..... ' 
+  INPUT WITH TEXT #MSG USING MAP 'ANCM6811' 
+END-IF 
+* 
+END-SUBROUTINE 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE RTN-ACESSA-ANCN6000 
+* -------------------------------------------------------------------- * 
+* 
+RESET  SUB-VLR-UTIL-TAB(*)  SUB-VLR-UTIL-BANCO  SUB-VLR-BLOQ-TAB(*) 
+  SUB-VLR-BLOQ-BANCO SUB-VLR-UTIL-TAB-REAL(*) SUB-VLR-UTIL-BCO-REAL 
+  SUB-VLR-PLA-BCO SUB-COD-RETORNO 
+* 
+CALLNAT 'ANCN6000' 
+  SUB-COD-BANCO  SUB-COD-MOEDA  SUB-MULTI-DIV  SUB-COTACAO-MOEDA 
+  SUB-VLR-UTIL-TAB (*)  SUB-VLR-UTIL-BANCO  SUB-VLR-BLOQ-TAB (*) 
+  SUB-VLR-BLOQ-BANCO SUB-VLR-UTIL-TAB-REAL(*) SUB-VLR-UTIL-BCO-REAL 
+  SUB-VLR-PLA-BCO SUB-COD-RETORNO 
+* 
+IF SUB-COD-RETORNO = 0 OR =2 
+* 
+  IF SUB-VLR-UTIL-BANCO = 0 AND 
+    VL-LIM-APROVADO-162 = 0 AND 
+    SUB-VLR-BLOQ-BANCO  = 0 
+    RESET #TOTAL 
+  ELSE 
+    PERFORM RTN-CALCULA-EXCE-LIMITE 
+  END-IF 
+END-IF 
+* 
+END-SUBROUTINE  /*Rtn-ACESSA-ANCN6000 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE RTN-CALCULA-EXCE-LIMITE 
+* -------------------------------------------------------------------- * 
+* 
+#UTILIZADO := SUB-VLR-UTIL-BANCO 
+#BLOQUEADO := SUB-VLR-BLOQ-BANCO 
+COMPUTE ROUNDED #TOTAL = #UTILIZADO + #BLOQUEADO 
+COMPUTE ROUNDED #LIMITE-APROV = VL-LIM-APROVADO-162         /* 66355 
+IF #MOEDA = 790 
+  COMPUTE ROUNDED #LIMITE-APROV = #LIMITE-APROV * #COT-REAL 
+END-IF 
+* 
+IF #TOTAL GT #LIMITE-APROV 
+* 
+* IF F_TABPAIS_COD = 0 
+*   F_TABPAIS_COD := 999 
+  IF #BDDAL088-F-TABPAIS-COD(#IND-01)  = 0                  /* 66355 
+     #BDDAL088-F-TABPAIS-COD(#IND-01) := 999                /* 66355 
+  END-IF 
+* SELECT COD, NOM INTO PAIS.COD, PAIS.NOM 
+*     FROM DB2BCI-PAIS 
+*     WHERE COD = F_TABPAIS_COD 
+* END-SELECT 
+* 
+* CHAMADA DA SUBROTINA BCIS006R                        /* AÇÃO 66355 
+* 
+  MOVE 1 TO #006R-CD-FUC                               /* AÇÃO 66355 
+  MOVE #BDDAL088-F-TABPAIS-COD(#IND-01) TO #006R-COD   /* AÇÃO 66355 
+* 
+  SET CONTROL 'P=C'                                    /* AÇÃO 66355 
+  CALL 'BCIS006R' USING #BCIL006R                      /* AÇÃO 66355 
+* 
+* 
+ IF #006R-CD-RTN NE 0                                  /* AÇÃO 66355 
+    COMPRESS 
+       'Erro BCIS006R Ý'#006R-CD-RTN'¨ Ý'#006R-TX-MSG-RTN'¨' 
+       INTO #MSG 
+       INPUT WITH TEXT #MSG USING MAP 'ANCM6811' 
+ END-IF 
+* 
+  PERFORM RTN-CONTROLE-PRC 
+* 
+  ADD 1 TO #BANCO 
+  ADD 1 TO #IND 
+  #CV                  (#IND) := (AD=D) 
+* #COD-BANCO           (#IND) := HOLDING.COD 
+  #COD-BANCO           (#IND) := #BDDAL088-COD(#IND-01)    /* 66355 
+  #SDO-UTIL-P13        (#IND) := #TOTAL 
+  #LIMITE-APRV-P13     (#IND) := #LIMITE-APROV 
+  COMPUTE ROUNDED #VLR-EXC-P3(#IND) = #LIMITE-APROV - #TOTAL 
+  COMPUTE ROUNDED #LIMITE    = #LIMITE  + #LIMITE-APROV 
+  COMPUTE ROUNDED #UTIL      = #UTIL    + #TOTAL 
+  COMPUTE ROUNDED #EXCESSO   = #EXCESSO + #VLR-EXC (#IND) 
+* #PAIS      (#IND) := PAIS.NOM 
+  #PAIS      (#IND) := #006R-NOM                           /* 66355 
+  IF #PAIS   (#IND) = ' ' 
+    #PAIS    (#IND) := 'NAO DECL' 
+  END-IF 
+* #NOM-BANCO (#IND) := HOLDING.NOM 
+  #NOM-BANCO (#IND) := #BDDAL088-NOM(#IND-01)              /* 66355 
+  IF #NOM-BANCO (#IND) = ' ' 
+    #NOM-BANCO (#IND) := 'NAO CADASTRADO' 
+  END-IF 
+  IF #IND GE 195 
+    PERFORM R010-MOSTRA-MAPA6020 
+    RESET MAPAS #IND 
+    #CV (*)  := (AD=N) 
+  END-IF 
+END-IF 
+END-SUBROUTINE  /*RTN-CALCULA-EXCE-LIMITE 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE R010-MOSTRA-MAPA6020 
+* -------------------------------------------------------------------- * 
+* 
+RESET #MSG 
+#IND-TEL := 1 
+* 
+REPEAT 
+  INPUT WITH TEXT #MSG USING MAP 'ANCM6811' 
+* 
+  DECIDE ON FIRST VALUE OF *PF-KEY 
+    VALUE 'PF1' , 'PF13' 
+      INPUT USING MAP  'ANCM5004' 
+      DECIDE ON FIRST VALUE *PF-KEY 
+        VALUE  'PF3', 'PF15' 
+          ESCAPE TOP 
+        VALUE 'PF7',  'PF19' 
+          SET CONTROL  'W<' 
+          REINPUT ' ' 
+        VALUE 'PF8', 'PF20' 
+          SET CONTROL  'W>' 
+          REINPUT ' ' 
+        NONE 
+          REINPUT ' Tecla invalida.' ALARM 
+      END-DECIDE 
+* 
+    VALUE 'PF3' , 'PF15' 
+      FETCH 'ANCP6801' #MOEDA 
+    VALUE  'PF5' , 'PF17' 
+      TERMINATE 
+    VALUE  'PF6' , 'PF18' 
+      FETCH RETURN 'ANCR6811' #MOEDA #COT-REAL 
+    VALUE 'PF7' , 'PF19' 
+      SUBTRACT 15 FROM #IND-TEL 
+      RESET #MSG 
+      IF #IND-TEL LE 0 
+        ADD 15 TO #IND-TEL 
+        REINPUT ' Primeira pagina.' ALARM 
+      END-IF 
+    VALUE 'PF8' , 'PF20' 
+      ADD 15 TO #IND-TEL 
+      IF #IND-TEL GE 181 AND #COD-BANCO(195) NE 0 
+        MOVE ' Foram apresentadas 195 Inst. Financeiras.' - 
+          ' Tecle F8 para continuar.' TO #MSG 
+      END-IF 
+      IF #IND-TEL GE 195 
+        IF #COD-BANCO(195) EQ 0 
+          SUBTRACT 15 FROM #IND-TEL 
+          REINPUT ' Ultima pagina.' ALARM 
+        ELSE 
+          ESCAPE ROUTINE 
+        END-IF 
+      ELSE 
+        IF #COD-BANCO(#IND-TEL) EQ 0 
+          SUBTRACT 15 FROM #IND-TEL 
+          REINPUT ' Ultima pagina.' ALARM 
+        END-IF 
+      END-IF 
+* 
+    VALUE 'PF10','PF22' 
+      FETCH 'ANCP5000' 
+    NONE 
+      REINPUT ' Tecla invalida.' ALARM 
+  END-DECIDE 
+END-REPEAT 
+END-SUBROUTINE  /*R010-MOSTRA-MAPA6020 
+* 
+END 

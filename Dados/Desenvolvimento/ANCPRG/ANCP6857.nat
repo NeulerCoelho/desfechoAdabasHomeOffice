@@ -1,0 +1,580 @@
+* ----------------------------------------------------------------------
+*  PROGRAMA: ANCP6857
+*  ANALISTA..: H443057
+*  AUTOR.....: H443057
+*  SISTEMA.: ANC
+*  OBJETIVO:
+* ----------------------------------------------------------------------
+************************************************************************ 
+* Sistema      : ANC - Analise de Clientes                             * 
+* Programa     : ANCP6857                                              * 
+* Programadora : Viviane Siqueira                                      * 
+* Analista     : Joao Teodoro                                          * 
+* Data         : 15/04/99                                              * 
+* Funcao       : Consulta relacao de limites vincendos                 * 
+**************************-------------------------------------------- * 
+* TRANSFERENCIA COM BIND * 
+**************************-------------------------------------------- * 
+* VRS013-08.09.10-OCTAVIO - RETIRA ACESSO DIRETO DB2BCI-PAIS           * 
+*                           ACAO 66355                                 * 
+* VRS012-04.01.08-Zolet  - Aumentar array para 300 ocorrencias         * 
+* VRS011-15.06.04-Tereza Cristina-Acesso com select na holding         * 
+* VRS010-28.05.04-Lucia Freire   -retira display (inibindo linha 1940) * 
+* VRS009-22.12.03-Octavio Augusto-recupera limites Suspensos           * 
+* VRS008-19.12.03-Octavio Augusto-recupera limit C/restricao e Isento  * 
+* VRS007-15.11.00-Viviane S.Mudança da rotina Usu-1100-Batch p/Gim705/6* 
+* VRS006 07.08.00-Viviane S.-Ajuste na leitura filtro pela dt recebida * 
+* VRS005 16.03.00-Viviane S.-Ajuste do tamanho da tabela de moedas     * 
+* VRS004-28/01/00-Viviane S.-Diferença entre programa e rotina de impr.* 
+* VRS003-11/11/99-Viviane S.-Inibe critica Cod_situ/Cod_natu da Inst.  * 
+* VRS002-28/05/99-Viviane S.-Modificacao na leitura de Real P/ Dolar   * 
+* VRS001-15/04/99-VIVIANE S.-Implantacao                               * 
+* -------------------------------------------------------------------- * 
+DEFINE DATA 
+LOCAL USING BDDA088M 
+LOCAL USING BDDAMENS 
+LOCAL USING BCIL006R 
+LOCAL USING BDDA002A 
+LOCAL USING BDDAMSG0 
+LOCAL 
+* 
+01 #MAPA 
+  02 #CD-BANCO                    (I04/80) 
+  02 #NOME-BANCO                  (A38/80) 
+  02 #DAT-VENC                    (N08/80) 
+  02 #RISCO                       (A01/80) 
+  02 #PAIS                        (A12/80) 
+  02 #SEL                         (A01/80) 
+  02 #CV-DIFIN                    (C / 80) 
+  02 #CV-LONDRES                  (C / 80) 
+  02 #CV-DIRIN                    (C / 80) 
+  02 #CV-VLR-NY                   (C / 80) 
+  02 #CV-SELECAO                  (C / 80) 
+  02 #MSG                         (A80) 
+* 
+  02 #VLR-DIRIN                   (N15/80) 
+  02 REDEFINE #VLR-DIRIN 
+    03 #VLR-DIRIN-R               (N13,2/80) 
+* 
+  02 #VLR-DIFIN                   (N15/80) 
+  02 REDEFINE #VLR-DIFIN 
+    03 #VLR-DIFIN-R               (N13,2/80) 
+* 
+  02 #VLR-LONDRES                 (N15/80) 
+  02 REDEFINE #VLR-LONDRES 
+    03 #VLR-LONDRES-R             (N13,2/80) 
+* 
+  02 #VLR-NOVA-IORQUE             (N15/80) 
+  02 REDEFINE #VLR-NOVA-IORQUE 
+    03 #VLR-NOVA-IORQUE-R         (N13,2/80) 
+* 
+01 #DATA-INICIO                   (N08) 
+01 REDEFINE #DATA-INICIO 
+  02 #DAT-DIA-I                   (A02) 
+  02 #DAT-MES-I                   (A02) 
+  02 #DAT-ANO-I                   (A04) 
+* 
+01 #DATA-FIM                      (N08) 
+01 REDEFINE #DATA-FIM 
+  02 #DAT-DIA-F                   (A02) 
+  02 #DAT-MES-F                   (A02) 
+  02 #DAT-ANO-F                   (A04) 
+* 
+01 #AUXILIARES 
+  02 #AUX-COT-MOEDA               (N8,7) 
+  02 #AUX-MULTI-DIV               (P001) 
+  02 #AUX-COT-REAL                (N8,7) 
+  02 #AUX-INST                    (I004) 
+  02 #AUX-DAT-I                   (A08) 
+  02 REDEFINE #AUX-DAT-I 
+    03 #AUX-DAT-IN                (N08) 
+  02 #AUX-DAT-F                   (A08) 
+  02 REDEFINE #AUX-DAT-F 
+    03 #AUX-DAT-FN                (N08) 
+* 
+  02 #AUX-DATA                    (N08) 
+  02 REDEFINE #AUX-DATA 
+    03 #AUX-ANO                   (N04) 
+    03 #AUX-MES                   (N02) 
+    03 #AUX-DIA                   (N02) 
+* 
+01 #INDEXADORES 
+  02 #NUMBER                      (N03) 
+  02 #IND-TAB-MOEDA               (I02) 
+  02 #IND-TEL                     (N07) INIT <1> 
+  02 #IND                         (N03) 
+  02 #CONT-REG                    (N05) 
+* 
+01 #GDA-DIFIN                     (N13,2) 
+01 #GDA-DIRIN                     (N13,2) 
+01 #GDA-LONDRES                   (N13,2) 
+01 #GDA-NOVA-IORQUE               (N13,2) 
+* 
+* VARIAVEIS DO MAPA ANCM6801 /* PASSAGEM DE PARAMETROS (ANCP5310) 
+* 
+01 WTEL-DOLLAR                    (A01) 
+01 #NOME-MOEDA                    (A20) 
+01 WTEL-RISCO                     (A01) 
+01 #COD-MOEDA                     (N03) 
+01 #COD-BANCO                     (N05) 
+01 WTEL-REAL                      (A01) 
+01 #COD-DEP                       (N04) 
+01 #MOEDA                         (N03) 
+01 #NOM-MOEDA                     (A05) 
+01 #OPC                           (A02) 
+* 
+01 I                              (I02) INIT <0> 
+01 Y                              (I02) 
+01 WAUX-CD-HOLDING                (N09/301) 
+01 WAUX-NM-HOLDING                (A55/301) 
+01 WAUX-NOME-PAIS                 (A25/301) 
+01 WAUX-CD-RISCO                  (A01/301) 
+01 WAUX-CD-SITU                   (A01/301) 
+01 #IN-RCMD                       (A01)     INIT <'S'> 
+01 #IN-FIMD                       (A01)     INIT <'S'> 
+* 
+* VIEWS 
+* 
+01 LIMITES VIEW OF ANC162-LIMITE 
+  02 CD-INST-FINANCEIRA-162 
+  02 DT-FIM-VIGENCIA-162 
+  02 DT-FIM-LIM-CREDITO-162 
+  02 VL-LIM-APROVADO-162 
+  02 ST-SITUACAO-162 
+* 
+  02 SUBLIMITE-INST-FINANC-162 
+    03 CD-SUBLIMITE-162                      (1:10) 
+    03 PC-LIMITE-AUTORIZADO-162              (1:10) 
+    03 REDEFINE PC-LIMITE-AUTORIZADO-162 
+      04 OCORRE                              (10) 
+        05 FILLER                            (N10) 
+        05 PC-LIMITE-AUTORIZADO-162-N5       (N3,2) 
+  02 C*SUBLIMITE-INST-FINANC-162 
+* 
+* 01 COMPANY VIEW OF DB2BDD-HOLDING_COMPANY 
+*   02 COD 
+*   02 NOM 
+*   02 F_TABPAIS_COD 
+* 
+* 01 PAIS VIEW OF DB2BCI-PAIS 
+*   02 COD 
+*   02 NOM 
+* 
+* 01 RISCO VIEW OF DB2BDD-RISCO_HC 
+*   02 COD 
+*   02 DTA_FIM_VLDE 
+*   02 F_HLDGCPNY_COD 
+* 
+INDEPENDENT 
+01 +GD-TAB-MOEDA-VALOR            (A39/300) 
+01 REDEFINE +GD-TAB-MOEDA-VALOR 
+  02 OCORRE                       (300) 
+    03 #GD-COD-MOEDA              (N03) 
+    03 #GD-NOME-MOEDA             (A20) 
+    03 #GD-PARIDADE               (N8,7) 
+    03 #GD-MULTIDIV               (N01) 
+01 +PROGRAM                       (A08) 
+* 
+END-DEFINE 
+* 
+SET KEY ALL 
+SET CONTROL 'M-2' 
+* 
+FETCH RETURN 'NATPLAN' 'ANCP0000' 
+* 
+INPUT #MOEDA #DATA-INICIO #DATA-FIM 
+* 
+COMPRESS #DAT-ANO-I #DAT-MES-I #DAT-DIA-I INTO #AUX-DAT-I LEAVING NO 
+COMPRESS #DAT-ANO-F #DAT-MES-F #DAT-DIA-F INTO #AUX-DAT-F LEAVING NO 
+* 
+IF #GD-COD-MOEDA(1) = 790 
+  #AUX-COT-REAL := #GD-PARIDADE(1) 
+END-IF 
+* 
+FOR #IND-TAB-MOEDA 1 TO 300 
+  IF #GD-COD-MOEDA(#IND-TAB-MOEDA) = #MOEDA 
+    #AUX-MULTI-DIV := #GD-MULTIDIV  (#IND-TAB-MOEDA) 
+    #AUX-COT-MOEDA := #GD-PARIDADE  (#IND-TAB-MOEDA) 
+    #NOME-MOEDA    := #GD-NOME-MOEDA(#IND-TAB-MOEDA) 
+    ESCAPE BOTTOM 
+  END-IF 
+END-FOR 
+* 
+IF #MOEDA = 790 
+  #NOM-MOEDA := ' REAL' 
+ELSE 
+  #NOM-MOEDA := 'DOLAR' 
+END-IF 
+* 
+MOVE (AD=NP) TO #CV-DIRIN(*) #CV-DIFIN(*) #CV-VLR-NY(*) #CV-LONDRES(*) 
+  #CV-SELECAO(*) 
+* 
+FIND LIMITES WITH DT-FIM-LIM-CREDITO-162 >= #AUX-DAT-IN 
+    AND DT-FIM-LIM-CREDITO-162 <= #AUX-DAT-FN 
+    SORTED BY DT-FIM-LIM-CREDITO-162 
+* 
+  PERFORM RTN-CONTROLE-PRC 
+* 
+  IF  DT-FIM-VIGENCIA-162 NE 99999999 
+    ESCAPE TOP 
+  END-IF 
+* 
+  IF ST-SITUACAO-162 NE 'A' AND ST-SITUACAO-162 NE 'R' AND 
+      ST-SITUACAO-162 NE 'I' AND ST-SITUACAO-162 NE 'S' 
+    ESCAPE TOP 
+  END-IF 
+* 
+  IF CD-INST-FINANCEIRA-162 EQ 99999 
+    ESCAPE TOP 
+  END-IF 
+* 
+  PERFORM BUSCA-NOME-BANCO 
+* 
+  #AUX-DATA := DT-FIM-LIM-CREDITO-162 
+  COMPUTE #DAT-VENC(#IND) = #AUX-DIA * 1000000 
+    + #AUX-MES * 10000 + #AUX-ANO 
+* 
+  IF #IND GE 80 
+    PERFORM MOSTRA-MAPA 
+    RESET #MAPA   #IND-TEL   #IND 
+  END-IF 
+* 
+END-FIND 
+* 
+IF #IND GT 0 
+  PERFORM MOSTRA-MAPA 
+ELSE 
+  MOVE 1 TO #IND-TEL 
+  INPUT WITH TEXT 
+    ' Nao ha Instituicao Financ. com limite vincendo no periodo.'- 
+    'Tecle <F3> p/ sair' USING MAP 'ANCM6857' 
+  DECIDE ON FIRST VALUE OF *PF-KEY 
+    VALUE 'PF3', 'PF15' 
+      FETCH 'ANCP6801'#MOEDA 
+    VALUE 'PF5', 'PF17' 
+      TERMINATE 
+    VALUE 'PF10', 'PF22' 
+      FETCH 'ANCP5000' 
+    NONE 
+      REINPUT ' Tecla invalida.'ALARM 
+  END-DECIDE 
+END-IF 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE RTN-CONTROLE-PRC 
+* -------------------------------------------------------------------- * 
+* 
+ADD 1 TO #CONT-REG 
+IF #CONT-REG GT 1000 
+  RESET #CONT-REG 
+  SET CONTROL 'N' 
+  #MSG  := 
+    ' Aguarde processamento.....     ' 
+  INPUT WITH TEXT #MSG USING MAP 'ANCM6857' 
+END-IF 
+* 
+END-SUBROUTINE 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE BUSCA-NOME-BANCO 
+* -------------------------------------------------------------------- * 
+#AUX-INST := CD-INST-FINANCEIRA-162 
+MOVE #AUX-INST  TO #BDDA088M-CD-ARG 
+* 
+RESET #BDDAMENS-ENT #BDDAMENS-ATB I #BDDAMENS-MSG 
+      #BDDAMENS-CD-MSG #BDDAMENS-SQL-CODE 
+* 
+* SELECT COMPANY.COD                /* ACAO 66355 
+*    , COMPANY.NOM 
+*    , PAIS.COD 
+*    , PAIS.NOM 
+*    , RISCO.COD 
+*    , RISCO.DTA_FIM_VLDE 
+*    INTO 
+*    COMPANY.COD 
+*    , COMPANY.NOM 
+*    , PAIS.COD 
+*    , PAIS.NOM 
+*    , RISCO.COD 
+*    , RISCO.DTA_FIM_VLDE 
+*    FROM DB2BDD-HOLDING_COMPANY COMPANY 
+*    LEFT OUTER JOIN DB2BCI-PAIS PAIS 
+*    ON COMPANY.F_TABPAIS_COD = PAIS.COD 
+*    LEFT OUTER JOIN DB2BDD-RISCO_HC RISCO 
+*    ON COMPANY.COD = RISCO.F_HLDGCPNY_COD 
+*    WHERE COMPANY.COD = #AUX-INST 
+*    AND RISCO.DTA_FIM_VLDE = '31.12.9999' 
+* 
+*  IF NO 
+*    ESCAPE ROUTINE 
+*  END-NOREC 
+* 
+* 
+*       RETIRA ACESSO DIRETO DB2BCI-PAIS ACAO 66355 
+* 
+* 
+  PERFORM BUSCA-HOLDING-COMPANY 
+* 
+  ADD  1 TO #IND 
+  #CD-BANCO   (#IND)  := WAUX-CD-HOLDING ( 1 ) 
+  #NOME-BANCO (#IND)  := WAUX-NM-HOLDING ( 1 ) 
+  #PAIS       (#IND)  := WAUX-NOME-PAIS ( 1 ) 
+  #CV-SELECAO (#IND)  := (AD=D) 
+  #CV-DIRIN   (#IND)  := (AD=D) 
+  #CV-DIFIN   (#IND)  := (AD=D) 
+  #CV-LONDRES (#IND)  := (AD=D) 
+  #CV-VLR-NY  (#IND)  := (AD=D) 
+* 
+  IF #NOME-BANCO (#IND) = ' ' 
+    #NOME-BANCO (#IND)  := 'Nao cadastrado' 
+  END-IF 
+* 
+  IF #PAIS(#IND) = ' ' 
+    #PAIS(#IND) := 'Nao cadastr.' 
+  END-IF 
+* 
+  IF #BDDA002A-DTA-FIM-VLDE  = 31129999 
+    #RISCO(#IND) := WAUX-CD-RISCO ( 1 ) 
+  ELSE 
+    #RISCO(#IND) := '-' 
+  END-IF 
+* 
+  PERFORM CARREGA-VALOR 
+* END-SELECT 
+* 
+PERFORM RTN-CONTROLE-PRC 
+* 
+END-SUBROUTINE 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE CARREGA-VALOR 
+* -------------------------------------------------------------------- * 
+* 
+IF CD-SUBLIMITE-162(1) = 1 
+  COMPUTE ROUNDED #GDA-DIFIN = 
+    (VL-LIM-APROVADO-162 * PC-LIMITE-AUTORIZADO-162-N5(1)) / 100 
+END-IF 
+IF CD-SUBLIMITE-162(2) = 2 
+  COMPUTE ROUNDED #GDA-DIRIN = 
+    (VL-LIM-APROVADO-162 * PC-LIMITE-AUTORIZADO-162-N5(2)) / 100 
+END-IF 
+IF CD-SUBLIMITE-162(3) = 3 
+  COMPUTE ROUNDED #GDA-LONDRES = 
+    (VL-LIM-APROVADO-162 * PC-LIMITE-AUTORIZADO-162-N5(3)) / 100 
+END-IF 
+IF CD-SUBLIMITE-162(4) = 4 
+  COMPUTE ROUNDED #GDA-NOVA-IORQUE = 
+    (VL-LIM-APROVADO-162 * PC-LIMITE-AUTORIZADO-162-N5(4)) / 100 
+END-IF 
+* 
+IF #MOEDA = 790 
+  COMPUTE ROUNDED #GDA-DIFIN       = (#GDA-DIFIN       * #AUX-COT-REAL) 
+  COMPUTE ROUNDED #GDA-DIRIN       = (#GDA-DIRIN       * #AUX-COT-REAL) 
+  COMPUTE ROUNDED #GDA-LONDRES     = (#GDA-LONDRES     * #AUX-COT-REAL) 
+  COMPUTE ROUNDED #GDA-NOVA-IORQUE = (#GDA-NOVA-IORQUE * #AUX-COT-REAL) 
+END-IF 
+* 
+MOVE #GDA-DIRIN         TO #VLR-DIRIN-R       (#IND) 
+MOVE #GDA-DIFIN         TO #VLR-DIFIN-R       (#IND) 
+MOVE #GDA-LONDRES       TO #VLR-LONDRES-R     (#IND) 
+MOVE #GDA-NOVA-IORQUE   TO #VLR-NOVA-IORQUE-R (#IND) 
+END-SUBROUTINE 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE MOSTRA-MAPA 
+* -------------------------------------------------------------------- * 
+* 
+RESET #MSG 
+FOR #IND-TEL 1 TO 80 
+  IF #CD-BANCO (#IND-TEL) EQ 0 
+    MOVE (AD=NP) TO #CV-DIRIN(#IND-TEL) #CV-DIFIN(#IND-TEL) 
+      #CV-VLR-NY(#IND-TEL) #CV-LONDRES(#IND-TEL) #CV-SELECAO(#IND-TEL) 
+  ELSE 
+    MOVE (AD=D)  TO #CV-SELECAO(#IND-TEL) 
+  END-IF 
+END-FOR 
+MOVE 1 TO #IND-TEL 
+REPEAT 
+  INPUT WITH TEXT #MSG USING MAP 'ANCM6857' 
+* 
+  DECIDE ON FIRST VALUE OF *PF-KEY 
+    VALUE 'ENTR' 
+      EXAMINE #SEL(*)  FOR  'X' GIVING NUMBER #NUMBER 
+      IF #NUMBER = 0 
+        REINPUT ' Selecione apenas com um "X".' 
+      END-IF 
+      IF #NUMBER GT 1 
+        REINPUT ' Selecione apenas uma opcao.' 
+      END-IF 
+      EXAMINE #SEL(*)  FOR 'X' GIVING INDEX #IND-TEL 
+      +PROGRAM := 'ANCP6857' 
+      FETCH 'ANCP5310' #CD-BANCO(#IND-TEL) #MOEDA #AUX-COT-MOEDA 
+        #NOME-MOEDA   #AUX-MULTI-DIV  #AUX-COT-REAL 
+    VALUE 'PF3' , 'PF15' 
+      FETCH 'ANCP6801' #MOEDA 
+    VALUE 'PF5' , 'PF17' 
+      TERMINATE 
+    VALUE 'PF6' , 'PF18' 
+      FETCH RETURN 'ANCR6857' #MOEDA #DATA-INICIO #DATA-FIM 
+        #AUX-COT-REAL 
+    VALUE 'PF7' , 'PF19' 
+      SUBTRACT 4 FROM #IND-TEL 
+      RESET #MSG 
+      IF #IND-TEL LE 0 
+        ADD 4 TO #IND-TEL 
+        REINPUT ' Primeira pagina.' ALARM 
+      END-IF 
+* 
+    VALUE 'PF8' , 'PF20' 
+      ADD 4 TO #IND-TEL 
+      IF #IND-TEL GE 77 AND #CD-BANCO(80) NE 0 
+        MOVE ' Foram apresentados 80 limites.' - 
+          ' Tecle F8 para continuar.' TO #MSG 
+      END-IF 
+* 
+      IF #IND-TEL GT 80 
+        IF #CD-BANCO(80) EQ 0 
+          SUBTRACT 4 FROM #IND-TEL 
+          REINPUT ' Ultima Pagina.' ALARM 
+        END-IF 
+      ELSE 
+        IF #CD-BANCO(#IND-TEL) EQ 0 
+          SUBTRACT 4 FROM #IND-TEL 
+          REINPUT ' Ultima Pagina.' ALARM 
+        END-IF 
+      END-IF 
+* 
+      IF #IND-TEL GE 80 
+        ESCAPE ROUTINE 
+      END-IF 
+* 
+    VALUE 'PF10','PF22' 
+      FETCH 'ANCP5000' 
+    NONE 
+      REINPUT ' Tecla invalida.' ALARM 
+  END-DECIDE 
+END-REPEAT 
+END-SUBROUTINE 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE BUSCA-HOLDING-COMPANY 
+* -------------------------------------------------------------------- * 
+* CONSULTA HOLDING (SUBROTINA BDDS088L) 
+* ADD 1 TO #I            /* CONTADOR DE CHAMADAS à SUBROTINA 
+* 
+PERFORM BDDS088L-LISTA-HOLDING  #BDDA088M #BDDAMENS 
+* 
+IF #BDDAMENS-CD-MSG NE 0 
+   IF #BDDAMENS-SQL-CODE  = 100 
+      ESCAPE ROUTINE 
+   ELSE 
+     COMPRESS 
+      'Erro chamada subrotina BCIS006R Ý' #006R-SQLCODE-RTN '¨' 
+       ' Tecle "F3" / Sair ' 
+       INTO #MSG 
+     INPUT WITH TEXT #MSG  USING MAP 'ANCM6857' 
+   END-IF 
+* 
+  IF *PF-KEY EQ 'PF3' OR= 'PF15' 
+      FETCH 'ANCP6801' 
+  ELSE 
+   IF *PF-KEY EQ 'ENTR' 
+     IF #AUX-INST  <> 0          /* ACAO 66355 
+       ESCAPE BOTTOM 
+     ELSE 
+       REINPUT 
+         ' Tecla invalida. Tecle F3.' 
+         ALARM 
+     END-IF 
+   END-IF 
+  END-IF 
+* 
+END-IF 
+* 
+MOVE 1             TO #006R-CD-FUC /* BUSCA NOME-PAIS 
+* 
+SUBTRACT 1 FROM #BDDA088M-QT-REG 
+FOR I 1 TO #BDDA088M-QT-REG  /* Lista ocorrências 
+  MOVE #BDDA088M-F-TABPAIS-COD ( I ) TO #006R-COD 
+  MOVE #BDDA088M-CD( I )             TO WAUX-CD-HOLDING ( I ) 
+  MOVE #BDDA088M-NM ( I )      TO WAUX-NM-HOLDING ( I ) 
+  MOVE #BDDA088M-CD-SITU ( I ) TO WAUX-CD-SITU ( I ) 
+* 
+  PERFORM BUSCA-NOME-PAIS 
+  PERFORM BUSCA-RISCO 
+END-FOR 
+* 
+END-SUBROUTINE  /* BUSCA-HOLDING-COMPANY 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE BUSCA-NOME-PAIS 
+* -------------------------------------------------------------------- * 
+* 
+RESET #006R-CD-RTN #006R-PRG-RTN 
+      #006R-SQLCODE-RTN #006R-TX-MSG-RTN +GD-MSG-TELA 
+* 
+MOVE 1  TO  #006R-CD-FUC 
+* 
+IF #006R-COD = 0 
+   MOVE 'Nao cadastrado' TO #006R-NOM 
+ELSE 
+* 
+   SET CONTROL 'P=C' 
+   CALL 'BCIS006R' USING #BCIL006R 
+* 
+        IF #006R-CD-RTN NE 0 
+           ASSIGN #IND-TEL = 1 
+           COMPRESS 
+           'Erro chamada subrotina BCIS006R Ý' #006R-SQLCODE-RTN '¨' 
+           ' Tecle "F3" / Sair ' 
+           INTO #MSG 
+           INPUT WITH TEXT #MSG  USING MAP 'ANCM6857' 
+           IF *PF-KEY = 'PF3' OR= 'PF15' 
+              FETCH 'ANCP5360' 
+           ELSE 
+              FETCH 'ANCP5000' 
+           END-IF 
+        END-IF 
+* 
+END-IF 
+  MOVE #006R-NOM  TO WAUX-NOME-PAIS ( I ) 
+* 
+END-SUBROUTINE  /* BUSCA-NOME-PAIS 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE BUSCA-RISCO 
+* -------------------------------------------------------------------- * 
+* CONSULTA O RISCO DA HOLDING COMPANY 
+* 
+RESET #BDDA002A-ENTRADA #BDDA002A-SAIDA #BDDAMSG0 
+* 
+MOVE 'C'               TO  #BDDA002A-CD-ACAO 
+MOVE #BDDA088M-CD( 1 ) TO  #BDDA002A-F-HLDGCPNY-COD 
+* 
+* 
+   SET CONTROL 'P=C' 
+   CALL 'BDDS002R' #BDDA002A-ENTRADA #BDDA002A-SAIDA 
+* 
+   MOVE #BDDA002A-TX-MSG TO #BDDAMSG0 
+   IF #BDDAMSG0-NR-MSG > 0 
+      IF #BDDAMSG0-CD-SQLCODE = 100 
+         MOVE ' ' TO #BDDA002A-COD 
+      ELSE 
+         ASSIGN #IND-TEL = 1 
+         COMPRESS 
+         'Erro Chamada Subrotina BDDS002R Ý' #BDDAMSG0-TX-MSG  '¨' 
+         ' Tecle "F3" / Sair ' 
+         INTO #MSG 
+         INPUT WITH TEXT #MSG  USING MAP 'ANCM6857' 
+         IF *PF-KEY = 'PF3' OR= 'PF15' 
+             FETCH 'ANCP5360' 
+         ELSE 
+            FETCH 'ANCP5000' 
+         END-IF 
+      END-IF 
+* 
+   END-IF 
+MOVE #BDDA002A-COD TO WAUX-CD-RISCO ( 1 ) 
+* 
+END-SUBROUTINE  /* BUSCA-RISCO 
+* 
+END 

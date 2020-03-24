@@ -1,0 +1,392 @@
+* ----------------------------------------------------------------------
+*  PROGRAMA: ANCP6809
+*  ANALISTA..: H443057
+*  AUTOR.....: H443057
+*  SISTEMA.: ANC
+*  OBJETIVO:
+* ----------------------------------------------------------------------
+************************************************************************ 
+* SISTEMA   : ANC - ANALISE DE CLIENTES                                * 
+* PROGRAMA  : ANCP6809                                                 * 
+* AUTOR     : IVAN MAIA                                                * 
+* ANALISTA  : JOAO TEODORO                                             * 
+* DATA      : 28/09/97                                                 * 
+* FUNCAO    : CONSULTA REVISAO DE LIMITES POR DATA DE REVISAO.         * 
+**************************-------------------------------------------- * 
+* TRANSFERENCIA COM BIND *                                             * 
+**************************-------------------------------------------- * 
+* VRS011-24.11.2017-Gileno - RETIRA ACESSO BDD                         * 
+* VRS010-10.08.2010-Delmar - RETIRA ACESSO DIRETO A TABELA DB2BCI-PAIS * 
+*                            AÇÃO 66355.                               * 
+* VRS009-09.03.2010  F7400599  RECOMPILA MODULOS NATURAL - DE 96801    * 
+* VRS008-16.03.00-Viviane S.-Ajuste do tamanho da tabela de moedas     * 
+* VRS007-28/01/00-Viviane S.-Ajuste do Find e Entr                     * 
+* VRS006-11/11/99-VIVIANE S.-Inibe critica Cod_situ/Cod_natu da Inst.  * 
+* VRS005-28/05/99-Viviane S.-Modificacao na leitura de real p/ dolar   * 
+* VRS004-21/12/98-Viviane S.-Mudança de leitura interna p/ externa.    * 
+* VRS003-18/11/98-Viviane S.-Mudança de leitura de tab. ADABAS p/DB2   * 
+* VRS002-26/10/98-Viviane S.-Ajustar a funcao da "F5" que estava desa- * 
+* tivada, "F7" E "F8" com erro de paginacao.                           * 
+* VRS001-26/09/97-Ivan Maia-Implantacao                                * 
+* -------------------------------------------------------------------- * 
+DEFINE DATA 
+* 
+LOCAL USING BCIL006R               /* 66355 
+LOCAL USING BDDA088A 
+LOCAL USING BDDA088L 
+LOCAL USING BDDAMSGS 
+LOCAL 
+* 
+01 #MAPA 
+* 
+  02 #COD-BANCO              (I04/14) 
+  02 #NOME-BANCO             (A30/14) 
+  02 #PAIS                   (A14/14) 
+  02 #RISCO                  (A01/14) 
+  02 #DATA-REVISAO           (N08/14) 
+  02 #DATA-BLOQUEIO          (N08/14) 
+  02 #CV-SEL                 (C / 14) 
+  02 #SEL                    (A01/14) 
+* 
+  02 #TAB-INICIO             (A13/500) 
+  02 #NOME-MOEDA             (A20) 
+  02 #GD-APARTIR             (N08) 
+  02 #INICIO                 (A13) 
+  02 #MOEDA                  (N03) 
+  02 #BANCO                  (N05) 
+  02 #NUMBER                 (N02) 
+  02 #INST                   (I04) 
+  02 #MESG                   (A47) 
+  02 #MSG                    (A70) 
+  02 #FLAG                   (N02) 
+  02 #IND                    (N07) INIT <1> 
+  02 #IND-1                  (N03) 
+  02 #IND-2                  (N03) 
+* 
+  02 #APARTIR                (N08) 
+  02 REDEFINE #APARTIR 
+    03 #PART-ANO             (N04) 
+    03 #PART-MES             (N02) 
+    03 #PART-DIA             (N02) 
+* 
+  02 #DATA                   (N08) 
+  02 REDEFINE #DATA 
+    03 #ANO                  (N04) 
+    03 #MES                  (N02) 
+    03 #DIA                  (N02) 
+* 
+  02 #DATA-R                 (N08) 
+  02 REDEFINE #DATA-R 
+    03 #DIA-R                (N02) 
+    03 #MES-R                (N02) 
+    03 #ANO-R                (N04) 
+* 
+  02 #ANTERIOR               (A13) 
+  02 REDEFINE #ANTERIOR 
+    03 #ANTERIOR-DATA        (N08) 
+    03 #ANTERIOR-COD         (N05) 
+* 
+  02 #PROXIMO                (A13) 
+  02 REDEFINE #PROXIMO 
+    03 #PROXIMO-DATA         (N08) 
+    03 #PROXIMO-COD          (N05) 
+* 
+01 #AUXILIARES 
+* 
+  02 #AUX-COT-REAL           (N8,7) 
+  02 #AUX-COT-MOEDA          (N8,7) 
+  02 #AUX-MULTI-DIV          (P01) 
+* 
+01 #SUPER1                   (B13) 
+01 REDEFINE #SUPER1 
+  02 #SUPER1-DATA            (N08) 
+  02 REDEFINE #SUPER1-DATA 
+    03 #SUPER1-ANO           (N04) 
+    03 #SUPER1-MES           (N02) 
+    03 #SUPER1-DIA           (N02) 
+  02 #SUPER1-CODIGO          (N05) 
+* 
+* VIEWS 
+* 
+01 LIMITES VIEW OF ANC162-LIMITE 
+  02 CD-INST-FINANCEIRA-162 
+  02 DT-REVISAO-LIM-162 
+  02 DT-FIM-LIM-CREDITO-162 
+  02 DT-FIM-VIGENCIA-162 
+  02 ST-SITUACAO-162 
+  02 SUPER1-162               (B13) 
+  02 REDEFINE SUPER1-162 
+    03 #SUPER1-TAB            (A08) 
+    03 REDEFINE #SUPER1-TAB 
+      04 #SUPERT-ANO          (N04) 
+      04 #SUPERT-MES          (N02) 
+      04 #SUPERT-DIA          (N02) 
+    03 #SUPERT-CODIGO         (N05) 
+* 
+* 01 HOLDING VIEW OF DB2\DD-HOLDING_COMPANY 
+*  02 COD 
+*  02 NOM 
+*  02 F_TABPAIS_COD 
+* 
+* 01 PAIS VIEW OF DB2BCI-PAIS 
+*   02 COD 
+*   02 NOM 
+* 
+* 01 RISCO VIEW OF DB2BDD-RISCO_HC 
+*  02 COD 
+*  02 DTA_FIM_VLDE 
+*  02 F_HLDGCPNY_COD 
+* 
+INDEPENDENT 
+01 +PROGRAM                  (A08) 
+01 +GD-TAB-MOEDA-VALOR       (A39/300) 
+01 REDEFINE +GD-TAB-MOEDA-VALOR 
+  02 OCORRE                  (300) 
+    03 #GD-COD-MOEDA         (N03) 
+    03 #GD-NOME-MOEDA        (A20) 
+    03 #GD-PARIDADE          (N8,7) 
+    03 #GD-MULTIDIV          (N01) 
+* -------------------------------------------------------------------- * 
+END-DEFINE 
+* 
+DEFINE WINDOW WIN1 
+  SIZE 12*41 
+  BASE 07/20 
+* 
+SET CONTROL 'M23' 
+SET KEY ALL 
+* 
+INPUT #MOEDA #SUPER1-ANO #SUPER1-MES #SUPER1-DIA #SUPER1-CODIGO 
+* 
+IF #GD-COD-MOEDA(1) = 790 
+  #AUX-COT-REAL := #GD-PARIDADE(1) 
+END-IF 
+* 
+FOR #IND-2 1 TO 200 
+  IF #GD-COD-MOEDA(#IND-2)  = #MOEDA 
+    #AUX-MULTI-DIV      := #GD-MULTIDIV(#IND-2) 
+    #AUX-COT-MOEDA      := #GD-PARIDADE(#IND-2) 
+    #NOME-MOEDA         := #GD-NOME-MOEDA(#IND-2) 
+    ESCAPE BOTTOM 
+  END-IF 
+END-FOR 
+* 
+REPEAT 
+  PERFORM MONTA-MAPA 
+* 
+  #MESG := ' Para pesquisa rapida digite a data de revisão:' 
+  INPUT WITH TEXT #MSG USING MAP 'ANCM6809' 
+* 
+  IF #PART-MES GT 0 
+    IF #PART-MES LT 1 OR #PART-MES GT 12 
+      REINPUT ' Mes invalido.' MARK *#PART-MES 
+    END-IF 
+    IF #PART-MES EQ 1 OR EQ 3 OR EQ 5 OR EQ 7 OR EQ 8 OR EQ 10 OR EQ 12 
+      IF #PART-DIA GT 31 OR #PART-DIA LE 0 
+        REINPUT ' Data invalida.' MARK *#PART-DIA 
+      END-IF 
+    END-IF 
+    IF #PART-MES EQ 2 
+      IF #PART-DIA GE 30 OR #PART-DIA LE 0 
+        REINPUT ' Data invalida.' MARK *#PART-DIA 
+      END-IF 
+    END-IF 
+    IF #PART-MES EQ 4 OR EQ 6 OR EQ 9 OR EQ 11 
+      IF #PART-DIA GT 30 OR #PART-DIA LE 0 
+        REINPUT ' Data invalida.' MARK *#PART-DIA 
+      END-IF 
+    END-IF 
+  END-IF 
+* 
+  DECIDE ON FIRST VALUE OF *PF-KEY 
+    VALUE 'ENTR' 
+      IF #APARTIR NE #GD-APARTIR 
+        RESET #TAB-INICIO(*) #IND 
+        #INICIO := #GD-APARTIR := #APARTIR 
+        #SUPER1-DATA := #APARTIR 
+        #IND := 1 
+        PERFORM MONTA-MAPA 
+        #APARTIR := 0 
+        ESCAPE TOP 
+      END-IF 
+* 
+      EXAMINE #SEL(*)  FOR  'X' GIVING NUMBER #NUMBER 
+      IF #NUMBER = 0 
+        REINPUT ' Marque com um "X".' MARK *#SEL(#IND) ALARM 
+      END-IF 
+      IF #NUMBER GT 1 
+        REINPUT ' Marque apenas um campo de selecao.' 
+          MARK *#SEL(#NUMBER) ALARM 
+      END-IF 
+* 
+      EXAMINE #SEL(*)  FOR 'X' GIVING INDEX #NUMBER 
+      +PROGRAM := 'ANCP6809' 
+      FETCH 'ANCP5310' #COD-BANCO(#NUMBER) #MOEDA #AUX-COT-MOEDA 
+        #NOME-MOEDA #AUX-MULTI-DIV #AUX-COT-REAL 
+* 
+    VALUE 'PF3' ,'PF15' 
+      FETCH 'ANCP6801' #MOEDA 
+    VALUE 'PF5' ,'PF17' 
+      TERMINATE 
+* 
+    VALUE 'PF7' ,'PF19' 
+      #IND := #IND - 1 
+      IF #IND EQ 0 
+        #IND := 1 
+        REINPUT ' Inicio do relatorio.' 
+      END-IF 
+      #SUPER1 := #TAB-INICIO(#IND) 
+* 
+    VALUE 'PF8' ,'PF20' 
+      IF #PROXIMO EQ ' ' 
+        REINPUT ' Fim do relatorio.' 
+        ESCAPE TOP 
+      END-IF 
+      #IND    := #IND + 1 
+      #SUPER1 := #PROXIMO 
+* 
+    VALUE 'PF10','PF22' 
+      FETCH 'ANCP5000' 
+* 
+    NONE 
+      REINPUT ' Tecla Invalida.' 
+  END-DECIDE 
+END-REPEAT 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE MONTA-MAPA 
+* -------------------------------------------------------------------- * 
+* 
+#ANTERIOR := #COD-BANCO(1) 
+RESET #SEL(*) #COD-BANCO(*) #NOME-BANCO(*) #PAIS(*) #RISCO(*) 
+  #DATA-REVISAO(*) #DATA-BLOQUEIO(*) #CV-SEL(*) #IND-1 
+#CV-SEL(*) := (AD=NP) 
+* 
+READ LIMITES BY SUPER1-162 EQ #SUPER1 
+    WHERE DT-FIM-VIGENCIA-162 EQ 99999999 
+    AND ST-SITUACAO-162 NE 'C' 
+* 
+  IF CD-INST-FINANCEIRA-162 EQ 99999 
+    ESCAPE BOTTOM 
+  END-IF 
+* 
+  #IND-1 := #IND-1 + 1 
+  IF #IND-1 EQ 15 
+    #PROXIMO-DATA := DT-REVISAO-LIM-162 
+    #PROXIMO-COD  := CD-INST-FINANCEIRA-162 
+    ESCAPE BOTTOM 
+  END-IF 
+* 
+  IF #IND-1 EQ 1 
+    #ANTERIOR-DATA    := DT-REVISAO-LIM-162 
+    #ANTERIOR-COD     := CD-INST-FINANCEIRA-162 
+    #TAB-INICIO(#IND) := #ANTERIOR 
+  END-IF 
+* 
+  #BANCO := CD-INST-FINANCEIRA-162 
+  PERFORM BUSCA-DADOS-BANCO 
+* 
+  IF #FLAG  EQ 1 
+    RESET #FLAG 
+    #IND-1 := #IND-1 - 1 
+    ESCAPE TOP 
+  END-IF 
+* 
+  IF #NOME-BANCO(#IND-1) =  ' ' 
+    #IND-1 := #IND-1 - 1 
+    #PROXIMO := ' ' 
+    ESCAPE TOP 
+  ELSE 
+    #DATA  := DT-REVISAO-LIM-162 
+    #DIA-R := #DIA 
+    #MES-R := #MES 
+    #ANO-R := #ANO 
+    #DATA-REVISAO(#IND-1) := #DATA-R 
+* 
+    #DATA  := DT-FIM-LIM-CREDITO-162 
+    #DIA-R := #DIA 
+    #MES-R := #MES 
+    #ANO-R := #ANO 
+    #DATA-BLOQUEIO(#IND-1) := #DATA-R 
+  END-IF 
+  #CV-SEL(#IND-1) := (AD=D) 
+* 
+END-READ 
+* 
+IF #IND-1 NE 0 
+  #PROXIMO-DATA := DT-REVISAO-LIM-162 
+  #PROXIMO-COD  := CD-INST-FINANCEIRA-162 
+END-IF 
+* 
+IF #IND-1 LT 14 
+  #PROXIMO := ' ' 
+END-IF 
+END-SUBROUTINE 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE BUSCA-DADOS-BANCO 
+* -------------------------------------------------------------------- * 
+* 
+#INST  :=  CD-INST-FINANCEIRA-162 
+* FIND (1) HOLDING WITH COD = #INST 
+*  IF NO RECORDS FOUND 
+*    ESCAPE BOTTOM 
+*  END-NOREC 
+* 
+RESET #BDDA088L #BDDAMSGS 
+#BDDA088L-CD-HDNG :=  #INST 
+PERFORM BDDS088O-OBTER-HOLDING-COMPANY #BDDA088L #BDDAMSGS 
+* 
+IF  #BDDA088L-NM-HDNG = ' ' 
+  ESCAPE ROUTINE 
+END-IF 
+#COD-BANCO(#IND-1)  := #BDDA088L-CD-HDNG 
+#NOME-BANCO(#IND-1) := #BDDA088L-NM-HDNG 
+* 
+* FIND (1) PAIS WITH COD = F_TABPAIS_COD 
+*   #PAIS (#IND-1)  := PAIS.NOM 
+* END-FIND 
+* 
+* RETIRA ACESSO DIRETO DB2BCI-PAIS ACAO 66355 
+* 
+MOVE 1             TO #006R-CD-FUC          /* 66355 
+MOVE #BDDA088L-CD-PAIS TO #006R-COD             /* 66355 
+* 
+SET CONTROL 'P=C'                           /* 66355 
+CALL 'BCIS006R' USING #BCIL006R             /* 66355 
+* 
+IF #006R-CD-RTN NE 0                      /* 66355 
+  COMPRESS 'Erro BCIS006R Ý'#006R-CD-RTN'¨ Ý'#006R-TX-MSG-RTN'¨' 
+    ' "F3" / SAI ' 
+    INTO +GD-MSG-TELA 
+  INPUT WITH TEXT +GD-MSG-TELA    USING MAP 'ANCM6809' 
+* 
+  IF *PF-KEY = 'PF3' OR= 'PF15' 
+    FETCH 'ANCP6801' #MOEDA 
+  ELSE 
+    FETCH 'ANCP5000' 
+  END-IF 
+END-IF 
+* 
+MOVE #006R-NOM  TO #PAIS(#IND-1)               /* 66355 
+* 
+* 
+IF #PAIS(#IND-1) = ' ' 
+  #PAIS(#IND-1) := 'Nao cadastrado.' 
+END-IF 
+* 
+#RISCO(#IND-1) := #BDDA088L-CD-RISCO-HC 
+* 
+* FIND RISCO WITH F_HLDGCPNY_COD = HOLDING.COD 
+*    AND DTA_FIM_VLDE = '31.12.9999' 
+*  IF  RISCO.COD EQ ' ' 
+*    #FLAG  := 1 
+*    ESCAPE ROUTINE 
+*  END-IF 
+*  #RISCO(#IND-1) := RISCO.COD 
+* END-FIND 
+* END-FIND 
+* 
+END-SUBROUTINE 
+* 
+END 

@@ -1,0 +1,310 @@
+* ----------------------------------------------------------------------
+*  PROGRAMA: ANCP6879
+*  ANALISTA..: H443057
+*  AUTOR.....: H443057
+*  SISTEMA.: ANC
+*  OBJETIVO:
+* ----------------------------------------------------------------------
+** ------------------------------------------------------------------- * 
+* Sistema......: ANC - ANALISE DE CLIENTES 
+* Programa.....: ANCP6879 
+* Mapa.........: ANCM6879 
+* Descricao....: Operacoes Overnight 
+* Programadora.: Viviane Siqueira 
+* Analista.....: Octavio Augusto Brandao do Valle 
+* Data.........: 15/03/2004 
+* -------------------------------------------------------------------- * 
+* VRS:002 - 04/08/08 - OCTAVIO    - Alterar tamanho tabela moeda p/300 
+* VRS:001 - 15/03/04 - Viviane S. - Implantacao 
+** ------------------------------------------------------------------- * 
+* 
+DEFINE DATA LOCAL 
+* 
+1 #COD-BANCO                (I04) 
+1 #NOME-BANCO               (A55) 
+1 #COD-SITUA                (A01) 
+1 #DTA-SITUA                (A10) 
+1 #COD-NATUR                (A01) 
+1 #COD-PAIS                 (N03) 
+1 #NOME-PAIS                (A25) 
+1 WPGM-IND-ATIVO            (A01) 
+1 #RISCO                    (A01) 
+1 #RC                       (N01) 
+  /* 0 - execucao normal 
+  /* 1 - Banco nao encontrado 
+  /* 2 - Banco nao esta ativo 
+  /* 3 - Holding nao bancaria 
+  /* 4 - Inst. sede/Praca/Pais nao encontrado 
+  /* 5 - Risco nao informado 
+* 
+1 WAREA-MAPA-6879 
+  2 WTEL-NM-MOEDA            (A05) 
+  2 WTEL-CD-INST-FINC        (N05) 
+  2 WTEL-NM-INST-FINC        (A50) 
+  2 WTEL-VLR-CONTRATADO      (P13,2) 
+  2 WTEL-VLR-MAX-OPR         (P13,2) 
+  2 WTEL-VLR-DISPNVL         (P13,2) 
+  2 WTEL-VLR-LIMT-APROVD     (P13,2) 
+  2 WTEL-VLR-EXCD            (P13,2) 
+* 
+01 WAREA-PROGRAMA 
+  02 WPGM-VLR-OPERACAO       (P13,2/420) 
+  02 WPGM-VLR-UTIL-TAB       (P13,2/10) 
+  02 WPGM-VLR-BLOQ-TAB       (P13,2/10) 
+  02 WPGM-VLR-UTIL-TAB-REAL  (P13,2/10) 
+  02 WPGM-VLR-UTIL-BCO       (P13,2) 
+  02 WPGM-VLR-BLOQ-BCO       (P13,2) 
+  02 WPGM-VLR-UTIL-BCO-REAL  (P13,2) 
+  02 WPGM-VLR-PLA-BCO        (P13,2) 
+  02 WPGM-VLR-OPER           (P13,2) 
+  02 WPGM-VLR-SALDO          (N13,2) 
+  02 WPGM-VLR-BLOQ           (N13,2) 
+  02 WPGM-VLR-MAX-OPR        (N13,2) 
+  02 WPGM-MULTI-DIV          (P001) 
+  02 WPGM-COTACAO-REAL       (N8,7) 
+  02 WPGM-CD-INST-FINC       (I04) 
+  02 WPGM-COTACAO            (N15) 
+  02 REDEFINE WPGM-COTACAO 
+    03 WPGM-COTACAO-R        (N8,7) 
+  02 WPGM-IND-TAB-MOEDA      (N03) 
+  02 WPGM-MOEDA              (N03) 
+  02 WPGM-RETORNO            (N01) 
+  02 WPGM-MSG                (A79) 
+  02 WPGM-IND                (I02) 
+  02 WPGM-RC                 (N01) 
+* 
+* VIEWS 
+* 
+01 ANC162-LIMITE VIEW OF ANC162-LIMITE 
+  02 CD-INST-FINANCEIRA-162 
+  02 VL-LIM-APROVADO-162 
+* 
+01 ANC161-OPERACOES  VIEW OF ANC161-OPERACOES 
+  02 ST-OPERACAO-161 
+  02 CD-INST-FINANCEIRA-161 
+  02 CD-LINHA-CREDITO-161 
+  02 CD-TIPO-OPERACAO-161 
+  02 CD-MOEDA-161 
+  02 VL-OPERACAO-161 
+* 
+01 ANC159-INCIDENCIA VIEW OF ANC159-INCIDENCIA 
+  02 CD-TIPO-OPERACAO-159 
+  02 VL-MAX-OPR 
+  02 CD-MOE-VL-MAX-OPR 
+* 
+INDEPENDENT 
+01 +GD-TAB-MOEDA-VALOR       (A39/300) 
+01 REDEFINE +GD-TAB-MOEDA-VALOR 
+  02 OCORRE                  (300) 
+    03 #GD-COD-MOEDA         (N03) 
+    03 #GD-NOME-MOEDA        (A20) 
+    03 #GD-PARIDADE          (N08,7) 
+    03 #GD-MULTIDIV          (N01) 
+* 
+END-DEFINE 
+* 
+SET KEY ALL 
+SET CONTROL 'M-2' 
+* 
+INPUT 
+  WTEL-CD-INST-FINC 
+  WTEL-NM-INST-FINC 
+  WPGM-MOEDA 
+  WPGM-RETORNO 
+* 
+IF WPGM-MOEDA = 220 
+  WTEL-NM-MOEDA := 'DOLAR' 
+ELSE 
+  WTEL-NM-MOEDA := 'REAL' 
+END-IF 
+* 
+IF #GD-COD-MOEDA (1) = 790 
+  MOVE #GD-PARIDADE(1) TO WPGM-COTACAO-REAL 
+END-IF 
+* 
+PERFORM BUSCA-VLR-BLOQ-UTILZ 
+PERFORM LER-LIMITE162 
+PERFORM LER-OPERACOES-161 
+PERFORM BUSCAR-NOME-BANCO 
+* 
+REPEAT 
+  INPUT WITH TEXT WPGM-MSG USING MAP 'ANCM6879' 
+* 
+  DECIDE ON FIRST VALUE OF *PF-KEY 
+    VALUE 'ENTR' 
+      IF WPGM-MSG NE ' ' 
+        REINPUT FULL ' Nenhuma ocorrencia encontrada. Para'- 
+          ' extrapolacao valor permitido op. overnight.' 
+      END-IF 
+* 
+    VALUE 'PF3' , 'PF15' 
+      IF WPGM-RETORNO = 1 
+        FETCH 'ANCP6814' WPGM-MOEDA 
+      ELSE 
+        ESCAPE ROUTINE 
+      END-IF 
+    VALUE 'PF5' , 'PF17' 
+      TERMINATE 
+    NONE 
+      REINPUT ' Tecla Invalida.' ALARM 
+  END-DECIDE 
+END-REPEAT 
+* 
+* ------------------------------------------------------------------- * 
+DEFINE SUBROUTINE BUSCA-VLR-BLOQ-UTILZ 
+* ------------------------------------------------------------------- * 
+* 
+RESET 
+  WPGM-VLR-UTIL-TAB(*) WPGM-VLR-UTIL-BCO WPGM-VLR-BLOQ-TAB(*) 
+  WPGM-VLR-BLOQ-BCO WPGM-VLR-UTIL-TAB-REAL(*) WPGM-VLR-UTIL-BCO-REAL 
+  WPGM-VLR-PLA-BCO WPGM-RC 
+* 
+PERFORM PEGA-COTACAO-MOEDA 
+* 
+WPGM-CD-INST-FINC := WTEL-CD-INST-FINC 
+CALLNAT 'ANCN6000' WPGM-CD-INST-FINC WPGM-MOEDA WPGM-MULTI-DIV 
+  WPGM-COTACAO-R WPGM-VLR-UTIL-TAB (*) WPGM-VLR-UTIL-BCO 
+  WPGM-VLR-BLOQ-TAB(*) WPGM-VLR-BLOQ-BCO WPGM-VLR-UTIL-TAB-REAL(*) 
+  WPGM-VLR-UTIL-BCO-REAL WPGM-VLR-PLA-BCO WPGM-RC 
+* 
+MOVE ROUNDED WPGM-VLR-UTIL-BCO TO WPGM-VLR-SALDO 
+MOVE ROUNDED WPGM-VLR-BLOQ-BCO TO WPGM-VLR-BLOQ 
+END-SUBROUTINE 
+* ------------------------------------------------------------------- * 
+DEFINE SUBROUTINE LER-LIMITE162 
+* ------------------------------------------------------------------- * 
+* 
+FIND(1) ANC162-LIMITE WITH CD-INST-FINANCEIRA-162 = WTEL-CD-INST-FINC 
+    SORTED BY DT-FIM-VIGENCIA-162 HR-ATUALIZACAO-162 DESCENDING 
+* 
+* Converte pela cotacao da moeda informada no menu 
+* 
+  IF WPGM-MOEDA = 220 
+    WTEL-VLR-LIMT-APROVD := VL-LIM-APROVADO-162 
+  ELSE 
+    COMPUTE ROUNDED  WTEL-VLR-LIMT-APROVD = VL-LIM-APROVADO-162 
+      * WPGM-COTACAO-REAL 
+  END-IF 
+* 
+END-FIND 
+* 
+COMPUTE ROUNDED WTEL-VLR-DISPNVL = WTEL-VLR-LIMT-APROVD 
+  - WPGM-VLR-BLOQ - WPGM-VLR-SALDO 
+* 
+END-SUBROUTINE  /*LER-LIMITE162 
+* 
+* ------------------------------------------------------------------- * 
+DEFINE SUBROUTINE LER-OPERACOES-161 
+* ------------------------------------------------------------------- * 
+* 
+FIND ANC161-OPERACOES WITH CD-INST-FINANCEIRA-161 = WTEL-CD-INST-FINC 
+    AND ST-OPERACAO-161 =  '1' 
+    WHERE CD-TIPO-OPERACAO-161 = 401 
+* 
+  ADD 1 TO WPGM-IND 
+  WPGM-VLR-OPER := VL-OPERACAO-161 
+* 
+  PERFORM PEGA-COTACAO-MOEDA 
+* 
+  IF CD-MOEDA-161 = 220 
+    WPGM-VLR-OPERACAO (WPGM-IND) := VL-OPERACAO-161 
+  ELSE 
+    IF CD-MOEDA-161 = 790 
+      COMPUTE WPGM-VLR-OPERACAO(WPGM-IND) = 
+        (WPGM-VLR-OPER / WPGM-COTACAO-REAL) 
+    ELSE 
+      IF WPGM-MULTI-DIV = 1 
+        COMPUTE WPGM-VLR-OPERACAO (WPGM-IND) = 
+          (WPGM-VLR-OPER * WPGM-COTACAO-R) 
+      ELSE 
+        COMPUTE WPGM-VLR-OPERACAO (WPGM-IND)  = 
+          (WPGM-VLR-OPER / WPGM-COTACAO-R) 
+      END-IF 
+    END-IF 
+  END-IF 
+  COMPUTE WTEL-VLR-CONTRATADO = WPGM-VLR-OPERACAO(WPGM-IND) + 
+    WTEL-VLR-CONTRATADO 
+END-FIND 
+* 
+*** Busca valor excedido 
+* 
+PERFORM CARREGA-VLR-MAX-OPR 
+* 
+* Converte pela cotacao da moeda informada no menu 
+* 
+IF WPGM-MOEDA NE 220 
+  COMPUTE ROUNDED  WTEL-VLR-CONTRATADO = WTEL-VLR-CONTRATADO 
+    * WPGM-COTACAO-REAL 
+END-IF 
+* 
+END-SUBROUTINE  /*LER-OPERACOES-161 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE CARREGA-VLR-MAX-OPR 
+* -------------------------------------------------------------------- * 
+* 
+FIND ANC159-INCIDENCIA WITH CD-LINHA-CREDITO-159 = CD-LINHA-CREDITO-161 
+    AND CD-TIPO-OPERACAO-159 = CD-TIPO-OPERACAO-161 
+    AND CD-RISCO-159         = 'A' 
+END-FIND 
+* 
+PERFORM PEGA-COTACAO-MOEDA 
+* 
+IF CD-MOE-VL-MAX-OPR = 220 
+  WPGM-VLR-MAX-OPR := VL-MAX-OPR 
+ELSE 
+  IF CD-MOE-VL-MAX-OPR = 790 
+    COMPUTE WPGM-VLR-MAX-OPR = (VL-MAX-OPR / WPGM-COTACAO-REAL) 
+  ELSE 
+    IF WPGM-MULTI-DIV = 1 
+      COMPUTE WPGM-VLR-MAX-OPR = (VL-MAX-OPR * WPGM-COTACAO-R) 
+    ELSE 
+      COMPUTE WPGM-VLR-MAX-OPR = (VL-MAX-OPR / WPGM-COTACAO-R) 
+    END-IF 
+  END-IF 
+END-IF 
+* 
+WTEL-VLR-MAX-OPR := WPGM-VLR-MAX-OPR 
+IF WTEL-VLR-CONTRATADO > WTEL-VLR-MAX-OPR 
+  COMPUTE WTEL-VLR-EXCD = WPGM-VLR-MAX-OPR - WTEL-VLR-CONTRATADO 
+ELSE 
+  WPGM-MSG :=  ' Nenhuma ocorrencia encontrada. Para extrapolacao '- 
+    'valor permitido op. overnight.' 
+  RESET WTEL-VLR-CONTRATADO  WTEL-VLR-MAX-OPR  WTEL-VLR-DISPNVL 
+    WTEL-VLR-LIMT-APROVD  WTEL-VLR-EXCD 
+  ESCAPE ROUTINE 
+END-IF 
+* 
+END-SUBROUTINE 
+* 
+* ------------------------------------------------------------------- * 
+DEFINE SUBROUTINE PEGA-COTACAO-MOEDA 
+* ------------------------------------------------------------------- * 
+* 
+FOR WPGM-IND-TAB-MOEDA 2 TO 300 
+  IF #GD-COD-MOEDA(WPGM-IND-TAB-MOEDA) = WPGM-MOEDA 
+    MOVE #GD-MULTIDIV(WPGM-IND-TAB-MOEDA) TO WPGM-MULTI-DIV 
+    MOVE #GD-PARIDADE(WPGM-IND-TAB-MOEDA) TO WPGM-COTACAO-R 
+    ESCAPE BOTTOM 
+  END-IF 
+END-FOR 
+END-SUBROUTINE  /*PEGA-COTACAO-MOEDA 
+* 
+* -------------------------------------------------------------------- * 
+DEFINE SUBROUTINE BUSCAR-NOME-BANCO 
+* -------------------------------------------------------------------- * 
+* 
+#COD-BANCO := WPGM-CD-INST-FINC 
+PERFORM VERIFICAR-HOLDING #COD-BANCO #NOME-BANCO 
+  #COD-SITUA #DTA-SITUA #COD-NATUR #COD-PAIS #NOME-PAIS WPGM-IND-ATIVO 
+  #RISCO #RC 
+* 
+IF #RC = 1 
+  ASSIGN WTEL-NM-INST-FINC = 'BANCO NAO CADASTRADO' 
+ELSE 
+  ASSIGN WTEL-NM-INST-FINC = #NOME-BANCO 
+END-IF 
+* 
+END-SUBROUTINE 
+* 
+END 
